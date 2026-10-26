@@ -1,0 +1,17 @@
+name: Windows proxy
+on: [push, pull_request, workflow_dispatch]
+permissions:
+  contents: read
+jobs:
+  proxy:
+    runs-on: windows-2025
+    steps:
+      - uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8
+        with:
+          persist-credentials: false
+      - name: Test Windows PowerShell 5.1 proxy lifecycle
+        shell: powershell
+        run: ./host/test-device-proxy.ps1
+      - name: Parse distro shell setup without WSL execution
+        shell: bash
+        run: sh -n host/in-dev-distro.sh

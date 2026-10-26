@@ -1,0 +1,13 @@
+AR-12: Validate reset to BOOTSEL, load, application reconnect and physical board
+identity on hardware. A blank board requires its BOOTSEL button and --no-touch;
+software reset requires the SDK USB stdio baud-reset support.
+Reason: fake-proxy tests establish client sequencing, not physical device action.
+
+AR-13: Validate real 115200-baud console delivery and reconnect to the same board.
+Reason: physical serial mapping and the hardware stream require a board run.
+
+AR-15: Execute the distro setup, proxy setup, firewall and lifetime on Windows/WSL.
+Reason: manual host execution is not established by script inventory or parsing.
+
+AR-15: Validate the proxy's serial-to-port and bootloader-drive mapping on hardware.
+Reason: physical serial mapping needs host execution and a connected board.

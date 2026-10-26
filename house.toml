@@ -1,0 +1,53 @@
+[house]
+platform = "house"
+languages = ["python", "cxx"]
+licence = "MIT"
+
+[packages.root]
+path = "."
+
+# The C++ here is tests and probes: built and run, never installed.
+[packages.root.modes]
+host = "build-test"
+
+[sync]
+files = [".clang-format", ".clang-tidy", ".clangd", ".editorconfig", ".github/workflows/ci.yml", ".devcontainer/devcontainer.json", "dev.py"]
+
+# Library-only gates are not applicable in this infrastructure checkout.
+[[gates]]
+name = "family-files"
+module = "pico_tooling.gate_files"
+group = "standards"
+
+[[gates]]
+name = "family-freshness"
+module = "pico_tooling.gate_freshness"
+group = "online"
+
+# Context prints the container-side pico config directory.
+[context]
+config_directories = ["pico"]
+
+[ci]
+# No pico.toml exists here; libraries run these gates against their own input.
+skip = { family-files = "infrastructure repository has no pico.toml", family-freshness = "infrastructure repository has no pico.toml" }
+
+[[ci.require]]
+group = "online"
+schedule = "weekly"
+
+[[ci.require]]
+group = "build"
+matrix = { sanitize = ["ON"] }
+
+[[ci.require]]
+group = "lint"
+matrix = { sanitize = ["ON"] }
+prepare = ["python3 dev.py build"]
+
+[sync.overlay.devcontainer]
+name = "pico family"
+runArgs = ["--security-opt", "seccomp=${localWorkspaceFolder}/.devcontainer/seccomp.json"]
+[sync.overlay.devcontainer.build]
+dockerfile = "Dockerfile"
+context = ".."

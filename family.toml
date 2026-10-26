@@ -1,0 +1,62 @@
+[groups]
+firmware = []
+
+[context]
+config_directories = ["pico"]
+
+[[gates]]
+name = "family-files"
+module = "pico_tooling.gate_files"
+group = "standards"
+
+[[gates]]
+name = "family-freshness"
+module = "pico_tooling.gate_freshness"
+group = "online"
+
+[[gates]]
+name = "footprint"
+module = "pico_tooling.gate_footprint"
+group = "firmware"
+
+[[gates]]
+name = "symbols"
+module = "pico_tooling.gate_symbols"
+group = "firmware"
+
+[[trees]]
+name = "firmware"
+profile = "pico_tooling.profiles:firmware"
+
+[ci]
+container = "ghcr.io/jamesfxley/pico-tooling@sha256:2be78b00b122fe64c18bd2a4900c6be7b8b51471b3dbe3b701024d4b6b83d0e9"
+container_user = "0"
+# A gate with no budget table has no obligation; present tables always run.
+skip = { footprint = "no [[footprint]] table", symbols = "no [[symbols]] table" }
+[[ci.require]]
+group = "online"
+schedule = "weekly"
+
+[[ci.require]]
+group = "build"
+matrix = { build_type = ["Debug", "Release"], sanitize = ["ON"] }
+
+[[ci.require]]
+group = "lint"
+matrix = { sanitize = ["ON"] }
+prepare = ["python3 dev.py build"]
+
+[[ci.require]]
+group = "firmware"
+matrix = { board = ["pico2_w"] }
+prepare = ["python3 dev.py build", "python3 dev.py gate build-warnings"]
+
+[sync]
+files = [".clang-format", ".clang-tidy", ".clangd", ".editorconfig", ".github/workflows/ci.yml", ".devcontainer/devcontainer.json", "dev.py"]
+
+[sync.overlay.devcontainer]
+name = "pico family"
+runArgs = ["--security-opt", "seccomp=${localWorkspaceFolder}/infra/.devcontainer/seccomp.json"]
+[sync.overlay.devcontainer.build]
+dockerfile = "../infra/.devcontainer/Dockerfile"
+context = "../infra"

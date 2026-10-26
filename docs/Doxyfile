@@ -1,0 +1,4 @@
+@INCLUDE = house/config/Doxyfile.base
+PROJECT_NAME = "padcheck line protocol"
+PROJECT_BRIEF = "The parsing of padcheck's command lines, with no hardware in it"
+INPUT = tools/padcheck
