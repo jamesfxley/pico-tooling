@@ -23,6 +23,7 @@ project(helper LANGUAGES CXX)
 {after}
 """
 SDK = """\
+message(STATUS "fake SDK included for PICO_BOARD ${{PICO_BOARD}}")
 set(PICO_PLATFORM "{platform}")
 {radio}
 macro(pico_sdk_init)
@@ -232,8 +233,33 @@ def test_an_environment_board_is_refused_rather_than_replaced(tmp_path):
     status, text, _ = firmware(
         tmp_path, call, "-DPICO_BOARD=pico", environment={"PICO_BOARD": "pico"},
     )
+    assert status == 0, text
+
+
+@pytest.mark.parametrize("board", ["pico", "pico2", "custom_rp2350b_board"])
+def test_any_board_reaches_the_sdk_without_an_allow_list(tmp_path, board):
+    status, text, _ = firmware(
+        tmp_path, "pico_family_bootstrap(APP)\n", f"-DPICO_BOARD={board}",
+    )
+    assert status == 0, text
+    assert f"fake SDK included for PICO_BOARD {board}" in text
+
+
+def test_a_radio_free_board_meets_the_platform_and_refuses_the_radio(tmp_path):
+    status, text, _ = firmware(
+        tmp_path, "pico_family_bootstrap(APP PLATFORM rp2040)\n",
+        "-DPICO_BOARD=pico", platform="rp2040", cyw43=False,
+    )
+    assert status == 0, text
+    status, text, _ = firmware(
+        tmp_path, "pico_family_bootstrap(APP CYW43)\n",
+        "-DPICO_BOARD=pico", platform="rp2040", cyw43=False,
+    )
     assert status != 0, text
-    assert "Unsupported PICO_BOARD='pico'. Supported boards: pico_w;pico2_w" in text
+    assert (
+        "APP needs a board with the CYW43 radio, and PICO_BOARD 'pico' has none"
+        in text
+    )
 
 
 def test_a_forced_firmware_configure_needs_a_real_sdk_path(tmp_path):

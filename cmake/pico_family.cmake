@@ -12,7 +12,6 @@ unset(_pico_family_version)
 # $<BUILD_LOCAL_INTERFACE:> (CMake manual, "versionadded:: 3.26") keeps SDK
 # libraries out of both exports, so every library of the family needs 3.26.
 set(PICO_FAMILY_MINIMUM_CMAKE "3.26")
-set(PICO_FAMILY_SUPPORTED_BOARDS pico_w pico2_w)
 
 # Select one context, recording its actual revision, state and release version.
 # A parent may serve children only within a compatible release line and at or
@@ -94,8 +93,10 @@ endfunction()
 # Before project(). Defines <PREFIX>_BUILD_FIRMWARE from the PICO_SDK_PATH CMake
 # variable only, never the environment, so a developer shell cannot silently
 # turn a host build into firmware. At top level a firmware build validates the
-# SDK and board and imports the SDK once. As a dependency it takes the parent's
-# SDK and board (BR-12) and never imports a second SDK.
+# SDK and imports it once. Any board the SDK defines is accepted; the SDK
+# refuses one it cannot find, and PLATFORM and CYW43 refuse a board the library
+# cannot run on. As a dependency it takes the parent's SDK and board (BR-12) and
+# never imports a second SDK.
 macro(pico_family_bootstrap PICO_FAMILY_PREFIX)
     if(CMAKE_VERSION VERSION_LESS PICO_FAMILY_MINIMUM_CMAKE)
         message(FATAL_ERROR
@@ -170,12 +171,6 @@ macro(_pico_family_import_sdk)
                     "Pass -DPICO_BOARD=<board> to choose.")
             endif()
             set(PICO_BOARD "pico2_w" CACHE STRING "Target Pico board" FORCE)
-        endif()
-        set_property(CACHE PICO_BOARD PROPERTY STRINGS ${PICO_FAMILY_SUPPORTED_BOARDS})
-        if(NOT PICO_BOARD IN_LIST PICO_FAMILY_SUPPORTED_BOARDS)
-            message(FATAL_ERROR
-                "Unsupported PICO_BOARD='${PICO_BOARD}'. Supported boards: "
-                "${PICO_FAMILY_SUPPORTED_BOARDS}")
         endif()
         set(PICOTOOL_FETCH_FROM_GIT_PATH "$ENV{HOME}/pico/picotool" CACHE PATH
             "Shared directory to fetch/build picotool into")

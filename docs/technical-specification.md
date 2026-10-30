@@ -55,7 +55,9 @@ guide gives each signature, behaviour and refusal, and the helper tests exercise
 them without an SDK. The generated bootstrap selects the context through the
 private `_pico_family_context`, which no library calls. Firmware builds default
 only from the `PICO_SDK_PATH` CMake variable; the top level imports and
-initializes the SDK once; a dependency takes its parent's SDK and board.
+initializes the SDK once; a dependency takes its parent's SDK and board. The top
+level accepts any board the SDK defines, and `PLATFORM` and `CYW43` refuse a
+board the library cannot run on.
 Dependencies are declared before any is populated, the first declaration wins, a
 different later pin is reported, and `FETCHCONTENT_SOURCE_DIR_<NAME>` overrides
 are reported with their revision and uncommitted state. A whole-build sizing

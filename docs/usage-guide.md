@@ -24,6 +24,26 @@ The report names local repository paths only; a URL is refused.
 `pico_tooling.profiles:firmware`. It is enabled when PICO_SDK_PATH names an SDK,
 uses Release, and selects HOUSE_MATRIX_BOARD, PICO_BOARD or pico2_w, in that
 order.
+
+The family accepts any board the Pico SDK defines: a board header shipped with
+the SDK or one found through `PICO_BOARD_HEADER_DIRS`. The SDK refuses a board
+it cannot find. A library refuses a board it cannot run on through the
+`PLATFORM` and `CYW43` arguments of `pico_family_bootstrap`. A library adds a
+firmware leg for a board to the `board` matrix of its `firmware` entry in
+`[[ci.require]]` in house.toml; the family default is `pico2_w`.
+
+| Board | `PICO_PLATFORM` | CYW43 radio | clang-tidy system includes |
+|---|---|---|---|
+| `pico` | `rp2040` | no | recorded |
+| `pico_w` | `rp2040` | yes | recorded |
+| `pico2` | `rp2350-arm-s` | no | recorded |
+| `pico2_w` (default) | `rp2350-arm-s` | yes | recorded |
+| RP2350B or other SDK board | from its header | from its header | none |
+| Custom header in `PICO_BOARD_HEADER_DIRS` | from its header | from its header | none |
+
+A board with recorded system includes gives clang-tidy the cross compiler's
+include directories for its platform. For any other board the firmware tree
+passes none.
 House owns sanitize: declare `house_cxx_enable_sanitizers(PREFIX)` and set
 HOUSE_MATRIX_SANITIZE=ON. The build stays Debug with leak detection enabled.
 
@@ -134,7 +154,7 @@ declares 3.24, so a library written from it raises its own minimum.
 
 | Entry point | Behaviour and contract |
 |---|---|
-| `pico_family_bootstrap(<PREFIX> [PLATFORM <p>] [CYW43])` | A macro, before `project()`. Defines `<PREFIX>_BUILD_FIRMWARE`, defaulting ON only when the `PICO_SDK_PATH` CMake variable names an SDK; the environment alone never turns it on. A top-level firmware build validates the SDK and board (`pico_w` or `pico2_w`; an environment `PICO_BOARD` other than `pico2_w`, with no variable, is refused) and includes the SDK once. A dependency requires the parent to have imported the SDK. `PLATFORM` refuses a board whose `PICO_PLATFORM` does not start with `<p>`, and `CYW43` refuses a board without the radio |
+| `pico_family_bootstrap(<PREFIX> [PLATFORM <p>] [CYW43])` | A macro, before `project()`. Defines `<PREFIX>_BUILD_FIRMWARE`, defaulting ON only when the `PICO_SDK_PATH` CMake variable names an SDK; the environment alone never turns it on. A top-level firmware build validates the SDK, accepts any board the SDK defines (an environment `PICO_BOARD` other than `pico2_w`, with no variable, is refused) and includes the SDK once. A dependency requires the parent to have imported the SDK. `PLATFORM` refuses a board whose `PICO_PLATFORM` does not start with `<p>`, and `CYW43` refuses a board without the radio |
 | `pico_family_init_sdk(<firmware>)` | A macro, after `project()`. On a firmware build the top-level project calls `pico_sdk_init()` once; a dependency checks that its parent did and is refused otherwise. A no-op on host |
 | `pico_family_dependency(<name> REPOSITORY <url> REVISION <id>)` | Declares one pinned product dependency with no submodules and requires a full commit ID. The first declaration of a name wins; a different later pin is reported as not used. `FETCHCONTENT_SOURCE_DIR_<NAME>` overrides it and is reported with its revision and uncommitted state. It populates nothing |
 | `pico_family_make_available(<name>...)` | A macro that populates the named declared dependencies. The library declares every pin in CMakeLists.txt, then calls this once |

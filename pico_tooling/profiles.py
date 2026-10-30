@@ -14,13 +14,17 @@ from types import SimpleNamespace
 
 DEFAULT_BOARD = "pico2_w"
 COMPILER = "arm-none-eabi-g++"
-# The compiler flags the Pico SDK 2.3.0 gives each supported board's platform:
+# The compiler flags the Pico SDK 2.3.0 gives each listed board's platform:
 # rp2040 uses cmake/preload/toolchains/pico_arm_cortex_m0plus_gcc.cmake line 5,
 # rp2350 uses pico_arm_cortex_m33_gcc.cmake line 4. clang-tidy needs the system
 # include directories of the multilib those flags select.
+RP2040_FLAGS = ("-mcpu=cortex-m0plus", "-mthumb")
+RP2350_ARM_FLAGS = ("-mcpu=cortex-m33", "-mthumb", "-march=armv8-m.main+fp+dsp")
 BOARD_FLAGS = {
-    "pico_w": ("-mcpu=cortex-m0plus", "-mthumb"),
-    "pico2_w": ("-mcpu=cortex-m33", "-mthumb", "-march=armv8-m.main+fp+dsp"),
+    "pico": RP2040_FLAGS,
+    "pico_w": RP2040_FLAGS,
+    "pico2": RP2350_ARM_FLAGS,
+    "pico2_w": RP2350_ARM_FLAGS,
 }
 SEARCH_LIST = re.compile(
     r"#include <\.\.\.> search starts here:\n(.*?)\nEnd of search list",
@@ -32,7 +36,7 @@ def system_includes(board, run=subprocess.run, which=shutil.which):
     """Return clang-tidy arguments naming the cross compiler's system includes.
 
     Returns nothing for a board with no recorded flags or an absent compiler;
-    the configure step then reports the board or the toolchain.
+    the configure step then reports an unknown board or a missing toolchain.
     """
     flags = BOARD_FLAGS.get(board)
     if flags is None or which(COMPILER) is None:

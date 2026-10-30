@@ -76,7 +76,9 @@ def test_the_board_comes_from_the_matrix_then_the_environment_then_the_default(
 @pytest.mark.parametrize(
     ("board", "flags"),
     [
+        ("pico", ["-mcpu=cortex-m0plus", "-mthumb"]),
         ("pico_w", ["-mcpu=cortex-m0plus", "-mthumb"]),
+        ("pico2", ["-mcpu=cortex-m33", "-mthumb", "-march=armv8-m.main+fp+dsp"]),
         ("pico2_w", ["-mcpu=cortex-m33", "-mthumb", "-march=armv8-m.main+fp+dsp"]),
     ],
 )
