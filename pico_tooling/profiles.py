@@ -35,8 +35,9 @@ SEARCH_LIST = re.compile(
 def system_includes(board, run=subprocess.run, which=shutil.which):
     """Return clang-tidy arguments naming the cross compiler's system includes.
 
-    Returns nothing for a board with no recorded flags or an absent compiler;
-    the configure step then reports an unknown board or a missing toolchain.
+    Returns nothing for a board with no recorded flags or an absent compiler.
+    A board the SDK defines without recorded flags builds without them; the
+    configure step reports a board the SDK cannot find or a missing toolchain.
     """
     flags = BOARD_FLAGS.get(board)
     if flags is None or which(COMPILER) is None:
