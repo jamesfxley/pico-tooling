@@ -44,6 +44,7 @@ firmware leg for a board to the `board` matrix of its `firmware` entry in
 A board with recorded system includes gives clang-tidy the cross compiler's
 include directories for its platform. For any other board the firmware tree
 passes none.
+
 House owns sanitize: declare `house_cxx_enable_sanitizers(PREFIX)` and set
 HOUSE_MATRIX_SANITIZE=ON. The build stays Debug with leak detection enabled.
 
