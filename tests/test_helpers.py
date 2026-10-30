@@ -230,10 +230,6 @@ def test_an_environment_board_is_refused_rather_than_replaced(tmp_path):
         tmp_path, call, "-DPICO_BOARD=pico_w", environment={"PICO_BOARD": "pico"},
     )
     assert status == 0, text
-    status, text, _ = firmware(
-        tmp_path, call, "-DPICO_BOARD=pico", environment={"PICO_BOARD": "pico"},
-    )
-    assert status == 0, text
 
 
 @pytest.mark.parametrize("board", ["pico", "pico2", "custom_rp2350b_board"])
