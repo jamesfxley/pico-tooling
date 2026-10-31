@@ -65,8 +65,9 @@ $boardFunctions = {
         return $found
     }
 
-    # The serial number is the last segment of the USB device's instance
-    # identifier; a serial port is either that device or its interface.
+    # The last segment of the USB device's instance identifier is its USB serial
+    # when the device reports one and location information otherwise (Microsoft,
+    # Instance IDs); a serial port is either that device or its interface.
     function Get-UsbSerial([string] $instance) {
         if ($instance -match '^USB\\VID_2E8A&PID_[0-9A-Fa-f]{4}\\([^\\]+)$') { return $Matches[1] }
         return $null
@@ -338,7 +339,7 @@ $handler = {
         try {
             $serialPort.Open()
         } catch [System.UnauthorizedAccessException] {
-            Send-Refusal $stream "busy" "$name is held by another process"
+            Send-Refusal $stream "busy" "$name is in use or access to it is denied"
             return
         } catch {
             Send-Refusal $stream "failed" "cannot open ${name}: $($_.Exception.Message)"

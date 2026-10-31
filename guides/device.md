@@ -18,7 +18,7 @@ build or select an unnamed board.
 
 The image, devcontainer configuration and seccomp settings are engine-neutral.
 Device commands require the documented Windows/WSL route. No Linux or macOS
-local-device backend is supplied.
+local-device backend is supplied (FW-2).
 
 ## One-time setup
 
@@ -66,7 +66,8 @@ the same workspace path:
 ```
 
 Setup copies the proxy and `start-device-proxy.ps1` launcher into the current
-user's pico configuration directory and restricts access to that user. It
+user's pico configuration directory and sets its access rules to allow only
+that user; administrators' ownership and backup privileges still apply. It
 reads/updates access rules only, leaving ownership and audit settings untouched.
 A protected folder with exactly one inheritable user FullControl allow rule
 needs no access-rule update. Setup refuses unexpected entries before mutation;
@@ -80,7 +81,8 @@ A matching enabled rule is kept without elevation. Setup replaces a rule of
 that name with different settings in one elevated child and names the
 replacement in its output. The scope uses Microsoft's local-IPv4-subnet
 keyword rather than an adapter identity, so it has no adapter reference to
-refresh after a restart. It admits local-subnet senders to the port; the proxy
+refresh after a restart. Microsoft defines the keyword as all local IPv4
+addresses, and the rule admits them to the port; the proxy
 still listens only on Windows' WSL gateway address and requires the workspace
 token. See [Microsoft's rule parameters](https://learn.microsoft.com/en-us/powershell/module/netsecurity/new-netfirewallrule).
 `-NoFirewall` skips this operation for CI or a machine without the distro.
@@ -156,8 +158,11 @@ and again by the host before `open` or `load`.
 
 A bootloader drive is tied to its board through the Windows device tree. The
 proxy starts at the disk drive's PNPDeviceID and follows DEVPKEY_Device_Parent
-at most four times, accepting the first Raspberry Pi USB device identifier.
-It uses that device's USB serial, not a parsed disk-instance suffix. If no
+at most four times, accepting the first identifier with Raspberry Pi's USB
+vendor ID 0x2E8A; an RP2350 whose OTP overrides the vendor ID is not found. It
+uses the last segment of that identifier, not a parsed disk-instance suffix.
+Windows sets that segment to the device's USB serial when the device reports
+one and to location information otherwise. If no
 accepted ancestor is found, the drive's serial is empty: it is never listed
 as allowed or matched by a load. Before a first flash, check one board in
 normal mode,
@@ -187,10 +192,10 @@ per-user temporary directory as fallback. Host serial opens also fail if busy.
 
 A running board is opened at 1200 baud for the reset. SDK 2.3.0 defines this in
 `src/rp2_common/pico_usb_reset/include/pico/usb_reset_config.h:10–27` and handles
-it in `pico_usb_reset/usb_reset.c:145–148`. It needs firmware using the SDK's USB
+it in `pico_usb_reset/usb_reset.c:147–148`. It needs firmware using the SDK's USB
 stdio with baud reset enabled; firmware driving TinyUSB directly does not enable
-it by default. On Windows the port can vanish while the 1200-baud open applies
-its line coding: the open can visibly fail even though the firmware resets.
+it by default. The firmware can reset while the 1200-baud open is still in
+progress, so the open can fail even though the reset happened (FW-3).
 An open refused with `failed` or `absent`, or a connection closed before the
 open reply, still leads to the BOOTSEL wait. If the named bootloader appears,
 the CLI reports that the port vanished during the reset as expected and
@@ -260,11 +265,18 @@ open or load and binds a load to the token's workspace.
 
 ## UNCONFIRMED
 
-| Behaviour | Evidence needed |
+Official documentation does not establish these behaviours (FW-3).
+
+| Behaviour | What the documentation leaves open |
 |---|---|
-| The bounded USB-parent lookup identifies the intended BOOTSEL board on a given host | Microsoft USB/PnP documentation, RP2040/RP2350 datasheets and an authorized host comparison with the updated proxy |
-| UF2 copy triggers reboot and exposes the intended application | UF2 specification, boot ROM documentation and an authorized flash |
-| Serial exclusivity, DTR/RTS, launcher/firewall/lifetime and host ACL behavior on the target Windows installation | Microsoft documentation and host acceptance |
+| The parent walk reaches the board's USB device within four steps | Microsoft USB/PnP documentation describes parent links, not a mass-storage disk's depth below the device |
+| Windows copies the USB serial into the instance identifier unchanged, and the bootloader and the application report the same serial | Microsoft USB documentation does not state the copy; the RP2040 datasheet does not say what its boot ROM serial is derived from; the RP2350 datasheet and the SDK give each source, not that the strings are equal |
+| The application that enumerates after the reboot is the image just copied | The RP2040 and RP2350 datasheets and the UF2 specification document the reboot, not which application then enumerates |
+| DTR and RTS reach the board when the port opens | Microsoft documents the SerialPort properties, not how the USB serial driver forwards them |
+| The 1200-baud open can fail while the reset happens | Microsoft serial documentation does not describe a device leaving during an open |
+| The launcher's adapter name and the `wsl.exe` options it passes | Microsoft WSL documentation names neither |
+| `LocalSubnet4` covers the WSL NAT subnet | Microsoft defines the keyword as all local IPv4 addresses without naming that subnet |
+| The proxy's dev container check | Docker's label filter and the Dev Containers `devcontainer.local_folder` label are not checked against their documentation |
 
 The Python fake-proxy tests exercise protocol and sequencing only. They do not
 establish these host or hardware properties. No Linux kernel USB routing is used.
