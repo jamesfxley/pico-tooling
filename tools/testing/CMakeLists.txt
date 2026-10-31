@@ -19,6 +19,39 @@ target_compile_definitions(pico_tooling_line_protocol_tests PRIVATE
     _GLIBCXX_ASSERTIONS)
 gtest_discover_tests(pico_tooling_line_protocol_tests)
 
+# The device-test emitter's portable half (AR-17): the TAP stream of a
+# device-test image. Its SDK half, run.hpp, compiles only in a firmware build.
+add_library(pico_tooling_device_test_tap INTERFACE)
+target_include_directories(pico_tooling_device_test_tap INTERFACE
+    ${PROJECT_SOURCE_DIR}/device_test/include)
+
+add_executable(pico_tooling_tap_tests tap_test.cpp)
+target_link_libraries(pico_tooling_tap_tests PRIVATE
+    pico_tooling_strict
+    pico_tooling_device_test_tap
+    GTest::gtest_main
+)
+target_compile_definitions(pico_tooling_tap_tests PRIVATE _GLIBCXX_ASSERTIONS)
+gtest_discover_tests(pico_tooling_tap_tests)
+
+# run.hpp includes the SDK, so the host compiles it against declarations of the
+# three SDK calls it makes (fake_sdk/). What it does with the board is not run
+# here; the image's own build proves it against the real SDK.
+add_executable(pico_tooling_run_tests run_test.cpp)
+target_include_directories(pico_tooling_run_tests PRIVATE fake_sdk)
+target_link_libraries(pico_tooling_run_tests PRIVATE
+    pico_tooling_strict
+    pico_tooling_device_test_tap
+    GTest::gtest_main
+)
+target_compile_definitions(pico_tooling_run_tests PRIVATE
+    "PICO_FAMILY_DEVICE_TEST_NAME=\"demo_tests\""
+    "PICO_FAMILY_DEVICE_TEST_VERSION=\"1.2.3\""
+    "PICO_FAMILY_DEVICE_TEST_BOARD=\"pico2_w\""
+    "PICO_FAMILY_DEVICE_TEST_COMMIT=\"abc123\""
+    PICO_FAMILY_DEVICE_TEST_DIRTY=1)
+gtest_discover_tests(pico_tooling_run_tests)
+
 # The cross probe's one syscall stub, compiled for the host so its body is
 # linted and covered; the cross build links the same file.
 add_executable(pico_tooling_cross_probe_stub_tests cross_probe_stub_test.cpp
