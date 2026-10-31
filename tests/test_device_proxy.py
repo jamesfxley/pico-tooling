@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Socket client and sequencing without devices (AR-12, AR-13, AR-15)."""
+"""Socket client and sequencing without devices (AR-12, AR-13, AR-15, AR-16)."""
 
 import contextlib
 import dataclasses
@@ -649,3 +649,124 @@ def test_proxy_discovery_cannot_escape_the_test_directory(tmp_path, relative):
         assert find_connection(start) is None, "discovery escaped to the ancestor decoy"
     finally:
         decoy.unlink()
+
+
+STREAM = (
+    "TAP version 14\n# image demo 0.1.0 board=pico2_w commit=abc123\n"
+    "ok 1 - HR-4 a\nok 2 - HR-5 b\n1..2\n"
+)
+
+
+def device_test(peer, *extra, host=None):
+    return invoke(
+        peer,
+        "test",
+        "--serial",
+        SERIAL,
+        "--timeout",
+        "1",
+        *extra,
+        str(peer.root / "image.uf2"),
+        host=host,
+    )
+
+
+def test_device_test_flashes_reads_the_stream_and_judges_it(proxy):
+    proxy.chunks = [STREAM[:30].encode(), STREAM[30:].replace("\n", "\r\n").encode()]
+    log = proxy.root / "test.log"
+    seen = []
+    host = host_of(proxy)
+    host.data = seen.append
+    status, host = device_test(proxy, "--log", str(log), host=host)
+    assert status == 0, host.err.getvalue()
+    assert [r["cmd"] for r in proxy.requests if r["cmd"] in {"open", "load"}] == [
+        "open",
+        "load",
+        "open",
+    ]
+    assert [r["baud"] for r in proxy.requests if r["cmd"] == "open"] == [1200, 115200]
+    assert b"".join(seen) == log.read_bytes() == b"".join(proxy.chunks)
+    assert host.err.getvalue().splitlines()[-3:] == [
+        "==> HR-4: 1 passed, 0 failed",
+        "==> HR-5: 1 passed, 0 failed",
+        "==> device test: PASS",
+    ]
+
+
+@pytest.mark.parametrize(
+    ("stream", "message"),
+    [
+        (STREAM.replace("ok 2", "not ok 2"), "1 test point not ok"),
+        ("TAP version 14\nok 1 - HR-4 a\nBail out! hub silent\n", "Bail out! hub"),
+        (STREAM.replace("1..2", "1..3"), "the plan is 1..3 but 2"),
+    ],
+)
+def test_device_test_fails_a_bad_stream_with_one(proxy, stream, message):
+    proxy.chunks = [stream.encode()]
+    status, host = device_test(proxy)
+    assert status == 1
+    assert f"==> device test: FAIL: {message}" in host.err.getvalue()
+
+
+def test_device_test_without_a_complete_stream_fails_at_the_deadline(proxy):
+    proxy.chunks = [b"TAP version 14\nok 1 - HR-4 a\n"]
+    log = proxy.root / "test.log"
+    status, host = invoke(
+        proxy,
+        "test",
+        "--serial",
+        SERIAL,
+        "--timeout",
+        ".05",
+        "--log",
+        str(log),
+        str(proxy.root / "image.uf2"),
+    )
+    assert status == 1
+    assert "no complete stream within 0.05s" in host.err.getvalue()
+    assert log.read_bytes() == b"TAP version 14\nok 1 - HR-4 a\n"
+
+
+def test_device_test_skips_a_plan_joined_midway_and_waits_for_the_next(proxy):
+    proxy.chunks = [b"ok 2 - HR-5 b\n1..2\n", b"boot noise\n", STREAM.encode()]
+    status, host = device_test(proxy)
+    assert status == 0, host.err.getvalue()
+    assert "==> device test: PASS" in host.err.getvalue()
+
+
+def test_device_test_dry_run_acts_on_nothing(proxy):
+    status, host = device_test(proxy, "--dry-run")
+    assert status == 0
+    assert "would reset" in host.out.getvalue()
+    assert not any(r["cmd"] in {"open", "load"} for r in proxy.requests)
+
+
+def test_device_test_flash_failure_is_one(proxy):
+    proxy.fail_load = True
+    status, host = device_test(proxy)
+    assert status == 1
+    assert "copy failed" in host.err.getvalue()
+    assert "device test" not in host.err.getvalue()
+
+
+def test_device_test_requires_a_timeout(proxy, capsys):
+    with pytest.raises(SystemExit) as stopped:
+        invoke(proxy, "test", "--serial", SERIAL)
+    assert stopped.value.code == 2
+    assert "--timeout" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("timeout", ["nan", "inf", "0", "-1"])
+def test_device_test_cannot_run_without_a_finite_positive_timeout(proxy, timeout):
+    status, host = invoke(
+        proxy,
+        "test",
+        "--serial",
+        SERIAL,
+        "--timeout",
+        timeout,
+        str(proxy.root / "image.uf2"),
+    )
+    assert status == 2
+    assert "--timeout" in host.err.getvalue()
+    assert not any(r["cmd"] in {"open", "load"} for r in proxy.requests)

@@ -1,5 +1,7 @@
 # SPDX-License-Identifier: MIT
-"""Device sequencing and console capture through the Windows host proxy (AR-12).
+"""Device sequencing, console capture and device tests through the host proxy.
+
+Covers AR-12, AR-13 and AR-16.
 
 The host owns the allow-list. Python owns one lock per board, the reset, load,
 reconnect and console policy. Commands never build and never choose a board.
@@ -37,6 +39,7 @@ from .device_errors import (
 )
 from .device_images import check_credentials, resolve_uf2
 from .device_proxy import Proxy, find_connection
+from .device_tap import first_stream, judge, report
 
 TOUCH_BAUD = 1200  # PICO_USB_RESET_MAGIC_BAUD_RATE
 CONSOLE_BAUD = 115200
@@ -327,9 +330,47 @@ def command_flash(host, args):
     with locked(args.serial, host.environ), terminating():
         flash(host, backend, args, uf2)
         if args.console:
-            return console(host, backend, args, forward_of(host, args), started=True)
+            return console(host, backend, args, started=True)
         host.say("==> Run `device console --serial ...` to watch its console.")
     return OK
+
+
+# -- test ----------------------------------------------------------------------
+
+
+def command_test(host, args):
+    """Flash a device-test image, read its TAP stream and judge it (AR-16)."""
+    backend = choose(host)
+    backend.allowed(args.serial)
+    check_timeout(args)
+    uf2, warning = find_image(host, args)
+    backend.image_path(uf2)
+    if warning:
+        host.warn(f"==> warning: {warning}")
+    if args.dry_run:
+        host.say(
+            f"would reset {args.serial} into BOOTSEL unless it is there, load "
+            f"{uf2} through the host proxy, then judge its TAP stream for up to "
+            f"{args.timeout}s",
+        )
+        return OK
+    with locked(args.serial, host.environ), terminating():
+        flash(host, backend, args, uf2)
+        watch = Watch(
+            host,
+            args,
+            None,
+            stop=lambda text: first_stream(text) is not None,
+            expected="no complete TAP stream",
+        )
+        status = console(host, backend, args, started=True, watch=watch)
+    if status != OK:
+        host.warn(f"==> device test: FAIL: no complete stream within {args.timeout}s")
+        return status
+    verdict = judge(first_stream(watch.text))
+    for line in report(verdict):
+        host.warn(line)
+    return FAILED if verdict.reasons else OK
 
 
 # -- console -------------------------------------------------------------------
@@ -352,12 +393,16 @@ def terminating():
         signal.signal(signal.SIGTERM, previous)
 
 
-def check_watch(args):
-    """Refuse agent-mode options that cannot run; return the pattern or None."""
+def check_timeout(args):
     if args.timeout is not None and (
         not math.isfinite(args.timeout) or args.timeout <= 0
     ):
         raise RefusalError(CANNOT_TRY, "--timeout must be finite and positive")
+
+
+def check_watch(args):
+    """Refuse agent-mode options that cannot run; return the pattern or None."""
+    check_timeout(args)
     if (args.until is None) != (args.timeout is None):
         raise RefusalError(CANNOT_TRY, "--until and --timeout go together")
     try:
@@ -367,10 +412,17 @@ def check_watch(args):
 
 
 class Watch:
-    """The agent mode's state: a pattern, a deadline and a log of the output."""
+    """The agent mode's state: a stop condition, a deadline and a log of the output.
 
-    def __init__(self, host, args, log):
-        self.pattern = check_watch(args)
+    The condition is a pattern from `--until`, or `stop`, a function of the
+    decoded output so far that returns whether to stop.
+    """
+
+    def __init__(self, host, args, log, stop=None, expected=None):
+        self.pattern = None if stop else check_watch(args)
+        self.stop = stop
+        self.timeout = args.timeout
+        self.expected = expected or f"no match for {args.until!r}"
         self.deadline = None if args.timeout is None else host.clock() + args.timeout
         self.log = log
         self.decoder = codecs.getincrementaldecoder("utf-8")("replace")
@@ -385,6 +437,8 @@ class Watch:
             self.log.write(chunk)
             self.log.flush()
         self.text = (self.text + self.decoder.decode(chunk))[-TAIL:]
+        if self.stop:
+            return self.stop(self.text)
         return self.pattern is not None and self.pattern.search(self.text) is not None
 
 
@@ -428,23 +482,25 @@ def board_ports(backend, serial):
     return board.ports if board else ()
 
 
-def timed_out(host, args):
-    host.warn(f"error: no match for {args.until!r} within {args.timeout}s")
+def timed_out(host, watch):
+    host.warn(f"error: {watch.expected} within {watch.timeout}s")
     return FAILED
 
 
-def console(host, backend, args, forward=None, started=False):
+def console(host, backend, args, started=False, watch=None):
     """Hold a console on the named board across reboots; return a status."""
     with contextlib.ExitStack() as stack:
         log = stack.enter_context(Path(args.log).open("ab")) if args.log else None
-        watch = Watch(host, args, log)
+        watch = watch or Watch(host, args, log)
+        watch.log = log
+        forward = forward_of(host, args)
         backend.deadline = watch.deadline
         if not started:
             attached(backend, args.serial)
         while True:
             left = watch.left(host)
             if left == 0.0:
-                return timed_out(host, args)
+                return timed_out(host, watch)
             port = wait_for(
                 host,
                 10**9 if left is None else left,
@@ -455,7 +511,7 @@ def console(host, backend, args, forward=None, started=False):
                 ),
             )
             if port is None:
-                return timed_out(host, args)
+                return timed_out(host, watch)
             host.warn(f"==> Connected on {port}")
             try:
                 stream = backend.open_serial(args.serial, CONSOLE_BAUD, port)
@@ -470,15 +526,19 @@ def console(host, backend, args, forward=None, started=False):
                 host.warn("==> Matched.")
                 return OK
             if why == "timeout":
-                return timed_out(host, args)
+                return timed_out(host, watch)
             host.warn(f"==> Lost connection to {port}; waiting for it to come back...")
             remaining = watch.left(host)
             host.sleep(1 if remaining is None else min(1, remaining))
 
 
 def forward_of(host, args):
-    """Return what to send to the board: standard input, but not in agent mode."""
-    return None if args.until is not None else host.stdin
+    """Return what to send to the board: standard input, but not in agent mode.
+
+    Agent mode is a deadline, which every watching command has and an
+    interactive console has not.
+    """
+    return None if args.timeout is not None else host.stdin
 
 
 def command_console(host, args):
@@ -487,7 +547,7 @@ def command_console(host, args):
     check_watch(args)
     with locked(args.serial, host.environ), terminating():
         host.warn("==> Holding a serial console session open (Ctrl+C to quit).")
-        return console(host, backend, args, forward_of(host, args))
+        return console(host, backend, args)
 
 
 # -- the command line ----------------------------------------------------------
@@ -536,6 +596,23 @@ def add_to(commands):
     )
     flashed.add_argument("--dry-run", action="store_true")
     flashed.add_argument("image", nargs="?", help="image name or path.uf2")
+    tested = actions.add_parser(
+        "test",
+        parents=[selected],
+        help="flash a device-test image and judge its TAP stream",
+    )
+    tested.add_argument(
+        "--timeout",
+        metavar="S",
+        type=float,
+        required=True,
+        help="fail after S seconds without a complete stream",
+    )
+    tested.add_argument("--log", metavar="FILE", help="append the board's output")
+    tested.add_argument("--build-dir", metavar="D")
+    tested.add_argument("--no-touch", action="store_true", help="already in BOOTSEL")
+    tested.add_argument("--dry-run", action="store_true")
+    tested.add_argument("image", nargs="?", help="image name or path.uf2")
     actions.add_parser(
         "console",
         parents=[selected, watching],
@@ -547,6 +624,7 @@ COMMANDS = {
     "list": command_list,
     "bootsel": command_bootsel,
     "flash": command_flash,
+    "test": command_test,
     "console": command_console,
 }
 
