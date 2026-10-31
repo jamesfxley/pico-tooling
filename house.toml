@@ -11,7 +11,7 @@ path = "."
 host = "build-test"
 
 [sync]
-files = [".clang-format", ".clang-tidy", ".clangd", ".editorconfig", ".github/workflows/ci.yml", ".devcontainer/devcontainer.json", "dev.py"]
+files = [".clang-format", ".clang-tidy", ".clangd", ".editorconfig", ".github/ISSUE_TEMPLATE/config.yml", ".github/ISSUE_TEMPLATE/defect.yml", ".github/pull_request_template.md", ".github/workflows/ci.yml", ".devcontainer/devcontainer.json", "dev.py"]
 
 # Library-only gates are not applicable in this infrastructure checkout.
 [[gates]]
