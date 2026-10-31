@@ -135,8 +135,9 @@ unit.
 ## The cross tree
 
 A cross build has its own build directory, because it is a different toolchain.
-It needs `PICO_SDK_PATH` as a CMake variable, and the board is `pico_w` or
-`pico2_w`. The compile database merges the trees so the editor resolves
+It needs `PICO_SDK_PATH` as a CMake variable, and the board is any board the
+SDK defines that the library's `PLATFORM` and `CYW43` requirements accept. The
+compile database merges the trees so the editor resolves
 cross-only
 sources;
 [cxx-build-and-toolchain](../../house/guides/cxx-build-and-toolchain/SKILL.md)
