@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Configure real synthetic libraries through one family context (AR-6)."""
+"""Configure real synthetic libraries through one family context (AR-6, AR-17)."""
 
 import os
 import re
@@ -91,6 +91,30 @@ if({prefix}_ENABLE_FIRMWARE_PROBE)
 endif()
 message(STATUS
     "probe={prefix}_ENABLE_FIRMWARE_PROBE=${{{prefix}_ENABLE_FIRMWARE_PROBE}}")
+"""
+DEVICE_TEST = """\
+cmake_minimum_required(VERSION 3.26)
+include(cmake/pico_family_bootstrap.cmake)
+pico_family_bootstrap({prefix})
+project({name} VERSION {version} LANGUAGES C CXX ASM)
+house_cxx_common_settings(${{{prefix}_BUILD_FIRMWARE}})
+pico_family_init_sdk(${{{prefix}_BUILD_FIRMWARE}})
+house_cxx_add_strict_target({name}_strict
+    VENDOR_SOURCES ${{{prefix}_BUILD_FIRMWARE}} LANGUAGES CXX)
+pico_family_add_device_test({name}_device_tests PACKAGE {name}
+    SOURCES device.cpp)
+"""
+DEVICE_SOURCE = """\
+#include "pico/stdlib.h"
+#include "pico_family/device_test/run.hpp"
+
+int main() {
+    stdio_init_all();
+    pico_family::device_test::Results<> results;
+    results.record("HR-1", "the-board-answers", true);
+    static_cast<void>(pico_family::device_test::wait_for_console());
+    pico_family::device_test::report_forever(results);
+}
 """
 CONSUMER = """\
 cmake_minimum_required(VERSION 3.26)
@@ -628,6 +652,89 @@ def test_a_real_sdk_probe_links_with_no_warning_and_binds_the_syscalls(repos):
     assert "pico_family_probe_unsupported" in defined
     assert set(SYSCALLS) <= defined
     assert {"_sbrk", "_exit"} <= defined
+
+
+def device_test_library(repos, name, template=DEVICE_TEST):
+    root, _ = product(
+        repos["base"] / name, repos["infra"], name,
+        {"template": template, "version": "1.0.0"},
+    )
+    (root / "device.cpp").write_text(DEVICE_SOURCE)
+    commit(root, "tests: add the device test")
+    return root
+
+
+def test_a_device_test_without_the_sdk_stops_naming_the_call(repos):
+    root = device_test_library(repos, "devhost")
+    done = configure(root)
+    text = " ".join((done.stdout + done.stderr).split())
+    assert done.returncode != 0
+    assert "pico_family_add_device_test(devhost_device_tests)" in text
+    assert "a device test is a firmware image" in text
+
+
+@pytest.mark.parametrize(
+    ("arguments", "message"),
+    [
+        (("PACKAGE", "pkg"), "PACKAGE and SOURCES are both required"),
+        (("SOURCES", "device.cpp"), "PACKAGE and SOURCES are both required"),
+        (
+            ("PACKAGE", "pkg", "EXTRA", "SOURCES", "device.cpp"),
+            "unrecognised arguments",
+        ),
+        (("PACKAGE", "pkg", "SOURCES"), "no value given for"),
+    ],
+)
+def test_a_device_test_refuses_bad_arguments(repos, arguments, message):
+    root = repos["base"] / ("devbad-" + "-".join(arguments).replace(".", "-"))
+    template = DEVICE_TEST.replace(
+        "{name}_device_tests PACKAGE {name}\n    SOURCES device.cpp)",
+        "{name}_device_tests " + " ".join(arguments) + ")",
+    )
+    product(root, repos["infra"], "devbad", {"template": template, "version": "1.0.0"})
+    done = configure(root)
+    text = " ".join((done.stdout + done.stderr).split())
+    assert done.returncode != 0
+    assert message in text
+
+
+@pytest.mark.real_sdk
+def test_a_real_sdk_device_test_builds_an_uf2_that_names_its_source(repos):
+    sdk = real_sdk()
+    root = device_test_library(repos, "devlink")
+    head = run("git", "rev-parse", "HEAD", cwd=root).stdout.strip()
+    done = configure(root, "-GNinja", f"-DPICO_SDK_PATH={sdk}", "-DPICO_BOARD=pico2_w")
+    assert done.returncode == 0, done.stdout[-3000:] + done.stderr[-3000:]
+    built = run("cmake", "--build", root / "build", "--target",
+                "devlink_device_tests", cwd=root, check=False)
+    log = built.stdout + built.stderr
+    assert built.returncode == 0, log[-3000:]
+    assert "warning" not in log.lower(), log
+    assert (root / "build/devlink_device_tests.uf2").is_file()
+    commands = run(
+        "ninja", "-t", "commands", "devlink_device_tests", cwd=root / "build",
+    ).stdout
+    for definition in (
+        'PICO_FAMILY_DEVICE_TEST_NAME=\\"devlink_device_tests\\"',
+        'PICO_FAMILY_DEVICE_TEST_VERSION=\\"1.0.0\\"',
+        'PICO_FAMILY_DEVICE_TEST_BOARD=\\"pico2_w\\"',
+        f'PICO_FAMILY_DEVICE_TEST_COMMIT=\\"{head}\\"',
+        "PICO_FAMILY_DEVICE_TEST_DIRTY=0",
+    ):
+        assert definition in commands, definition
+
+
+@pytest.mark.real_sdk
+def test_a_real_sdk_device_test_marks_a_dirty_source(repos):
+    sdk = real_sdk()
+    root = device_test_library(repos, "devdirty")
+    (root / "untracked.txt").write_text("changed\n")
+    done = configure(root, "-GNinja", f"-DPICO_SDK_PATH={sdk}")
+    assert done.returncode == 0, done.stdout[-3000:] + done.stderr[-3000:]
+    commands = run(
+        "ninja", "-t", "commands", "devdirty_device_tests", cwd=root / "build",
+    ).stdout
+    assert "PICO_FAMILY_DEVICE_TEST_DIRTY=1" in commands
 
 
 @pytest.mark.parametrize(
