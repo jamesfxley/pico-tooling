@@ -2,6 +2,7 @@
 """Real local infrastructure sources and scaffolded libraries, no network."""
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -82,6 +83,13 @@ def make_infra_source(source, house_source):
     source.mkdir()
     git(source, "init", "--quiet", "--initial-branch=main")
     tracked_copy(ROOT, source)
+    # The copy is the synthetic release 0.1.0, whatever this checkout's version.
+    for name, line in (("pyproject.toml", 'version = "0.1.0"'),
+                       ("pico_tooling/__init__.py", '__version__ = "0.1.0"')):
+        path = source / name
+        key = line.split(" = ", 1)[0]
+        path.write_text(re.sub(rf"^{re.escape(key)} = .*$", line,
+                               path.read_text(), count=1, flags=re.MULTILINE))
     git(source, "submodule", "add", "--quiet", str(house_source), "house")
     git(source / "house", "config", "submodule.standard.url",
         str(ROOT / "house/standard"))
