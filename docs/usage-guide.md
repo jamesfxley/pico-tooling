@@ -41,6 +41,8 @@ firmware leg for a board to the `board` matrix of its `firmware` entry in
 | RP2350B or other SDK board | from its header | from its header | none |
 | Custom header in `PICO_BOARD_HEADER_DIRS` | from its header | from its header | none |
 
+The RP2350's RISC-V cores are not built (FW-1).
+
 A board with recorded system includes gives clang-tidy the cross compiler's
 include directories for its platform. For any other board the firmware tree
 passes none.

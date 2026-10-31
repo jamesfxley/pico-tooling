@@ -18,7 +18,7 @@ build or select an unnamed board.
 
 The image, devcontainer configuration and seccomp settings are engine-neutral.
 Device commands require the documented Windows/WSL route. No Linux or macOS
-local-device backend is supplied.
+local-device backend is supplied (FW-2).
 
 ## One-time setup
 

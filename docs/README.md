@@ -13,5 +13,6 @@
 | [Deviations](deviations.md) | Which exceptions are approved? |
 | [Budget](deviation-budget.txt) | What are the ceilings? |
 | [Prefixes](requirement-prefixes.txt) | Which IDs belong here? |
+| [Future work](future-work.md) | What is deliberately not built? |
 
 [Traceability exceptions](traceability-exceptions.txt) records manual evidence.
