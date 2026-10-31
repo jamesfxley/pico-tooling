@@ -11,3 +11,9 @@ Reason: manual host execution is not established by script inventory or parsing.
 
 AR-15: Validate the proxy's serial-to-port and bootloader-drive mapping on hardware.
 Reason: physical serial mapping needs host execution and a connected board.
+
+AR-16: Validate a device test against a real board: flash, console delivery of the stream and the verdict.
+Reason: the fake proxy establishes sequencing and judgement, not a board's output.
+
+AR-17: Validate that a running image waits for the console, emits a whole stream and re-emits it.
+Reason: the host compile of run.hpp uses declarations of the SDK calls, not the SDK on a board.

@@ -69,8 +69,9 @@ It prints no token and does not retry. Commands never build.
 
 See the [device guide](../guides/device.md) for setup, `device list`,
 `device flash --serial S`, `device console`, agent capture with
-`--until RE --timeout S --log FILE`, the blank-board BOOTSEL requirement,
-protocol and exit statuses. Every real board action needs explicit user
+`--until RE --timeout S --log FILE`, `device test --serial S --timeout S` for
+flashing a device-test image and judging its TAP stream, the blank-board BOOTSEL
+requirement, protocol and exit statuses. Every real board action needs explicit user
 authorization naming the serial and intended image.
 
 ## Embedded gates
@@ -167,6 +168,7 @@ declares 3.24, so a library written from it raises its own minimum.
 | `pico_family_declare_profile(<PREFIX> NAME <name> DEFAULT <value> VALUES <value>... [DOC <text>])` | Declares the whole-build sizing profile `<PREFIX>_<NAME>` as a cached string restricted to the listed values; a value outside the set, including an empty one, is refused naming the set. A second declaration of the same variable with a different default or value set, from another library, is fatal and names both directories; an identical one is a no-op |
 | `pico_family_declare_probe_option(<PREFIX>)` | A macro. Declares `<PREFIX>_ENABLE_FIRMWARE_PROBE`, on only for a top-level cross-compiling configure, so the probe is built exactly when its question is meaningful |
 | `pico_family_add_cross_probe(<target> PACKAGE <package> SOURCE <file> [LIBRARIES <target>...])` | A freestanding cross-compiled executable with the suffix `.elf`, built from `SOURCE` and the shared stub, linked to `<package>_strict` and `LIBRARIES`, with C++20, no exceptions, no RTTI and `--specs=nosys.specs`. The 21 libnosys syscall names are bound to the stub as described below. It needs the context's `PICO_FAMILY_ROOT`, so a library calls it after its bootstrap. `PACKAGE` and `SOURCE` are required |
+| `pico_family_add_device_test(<name> PACKAGE <package> SOURCES <file>... [LIBRARIES <target>...])` | A firmware executable and its `.uf2`, for `device test` (AR-17). Outside a firmware build it stops with a message naming the call. It applies `-Werror` to `SOURCES`, links `<package>_strict`, the `pico_family::device_test` headers, `pico_stdlib` and `LIBRARIES`, enables USB stdio, disables UART stdio, and defines the image's identity: its name, `PROJECT_VERSION`, `PICO_BOARD`, the configure-time commit of the project's source and a dirty flag (`unknown` without git). The package's strict target takes `VENDOR_SOURCES` in a firmware build, so the SDK's sources do not get `-Werror`. `PACKAGE` and `SOURCES` are required |
 | `pico_family_propagate_install(<PREFIX> <dependency prefix>...)` | A macro. When `<PREFIX>_ENABLE_INSTALL` is on it forces each `<dependency prefix>_ENABLE_INSTALL` on, so installing a library installs the dependencies its export names. At least one dependency is required |
 
 A cross probe links no SDK library, so the C library's system calls have nothing

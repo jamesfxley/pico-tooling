@@ -233,6 +233,69 @@ bytes in either mode. Invalid options or an unusable log exit 2. Output before
 the console attaches is not captured; use `flash --console` and firmware that
 waits for USB connection or reports on request when startup output matters.
 
+## Device tests
+
+```text
+python3 -m infra.pico_tooling device test --serial S --timeout S [--port P] [--build-dir D] [--no-touch] [--dry-run] [--log FILE] [image|path.uf2]
+```
+
+A device test runs the cases a host test cannot establish, on the board, and
+judges them. The command flashes exactly as `flash` does (lock, reset, BOOTSEL
+wait, load, reconnect, image selection), holds the console in agent mode under
+the same lock, and stops at the first complete stream: a `TAP version 14` line
+followed by a plan or a `Bail out!` line. `--timeout` is required. Naming
+`tests/device` selects `build-firmware/tests/device/*.uf2`. A plan with no
+version line before it joins a stream midway and is skipped; the command waits
+for the next re-emission. Board output goes to standard output, `--log` appends
+its exact bytes, and lines that are not TAP pass through.
+
+The verdict goes to standard error: the image's identity comment, one line per
+requirement ID (`==> HR-4: 2 passed, 0 failed`), each failed case with its
+comment lines, and a last line, `==> device test: PASS` or `==> device test:
+FAIL: <reason>`. Status 0 means every test point is `ok`, numbered 1..N once
+each, with N the plan. Status 1 is a `not ok`, a `Bail out!`, a count or
+numbering mismatch, a plan of 1..0, no complete stream before the deadline, or
+a failed flash step; 2, 3, 130 and 143 are as for the console. `--dry-run`
+prints the plan and acts on nothing.
+
+The image emits this subset of TAP 14, which the command and `tap.hpp` share:
+
+```text
+TAP version 14
+# image pico_bno085_device_tests 0.1.0 board=pico2_w commit=<sha>[-dirty]
+ok 1 - HR-4 i2c-refuses-unreachable-pins
+not ok 2 - HR-4 spi-refuses-unreachable-pins
+  # miso=17 init=ok, expected INVALID_ARGUMENT
+1..2
+```
+
+- One test point per case: `ok|not ok <n> - <requirement ID> <case-name>`. The
+  first word of the description is the requirement ID. A case that cites two
+  IDs is two cases.
+- The plan comes last. A stream without one, such as an image that crashed or
+  hung, fails.
+- `Bail out! <reason>` stops the run and fails it.
+- Comment lines carry a failed case's detail and the image identity. Skips,
+  TODO directives and YAML blocks are outside the subset and fail the run: a
+  device test holds or fails.
+- CRLF and CR read as LF, since the SDK's stdio translates LF to CRLF.
+
+The firmware side is `device_test/include/pico_family/device_test/`.
+`tap.hpp` records cases in fixed storage and emits the stream, with no SDK and
+no allocation. `run.hpp` waits up to 30 seconds for the USB console, then emits
+the stream and re-emits it every 2 seconds, so a console that attaches late
+still receives a whole one. That DTR reaches the board is UNCONFIRMED, below;
+the re-emission makes the run independent of it. A library adds the image with
+`pico_family_add_device_test` (see the usage guide and `docs/new-library.md`),
+which defines the identity: name, version, board and the commit of the library's
+source, with `-dirty` when its working tree has changes. Without git the commit
+is `unknown`.
+
+Record a run in the pull request's Verification section: the board serial, the
+image's commit from the identity line, the command, and the verdict output. A
+device test measures nothing; a measurement is a benchmark, and benchmarks are
+a separate tier.
+
 ## Protocol
 
 One newline-delimited UTF-8 JSON request per TCP connection, always with
@@ -257,8 +320,8 @@ open or load and binds a load to the token's workspace.
 
 | Status | Meaning |
 |---|---|
-| 0 | Completed or console pattern matched |
-| 1 | Reset/reconnect or console timeout, copy failure, busy port or held lock |
+| 0 | Completed, console pattern matched or device test passed |
+| 1 | Reset/reconnect or console timeout, copy failure, busy port or held lock, failed device test |
 | 2 | Cannot run: setup unavailable, refused token/serial/path, absent board, invalid options, missing image or unusable log |
 | 3 | Several images or ports without a selection |
 | 130 / 143 | Interrupted / terminated |

@@ -31,3 +31,40 @@ CMake helper signatures and gate budgets.
 
 See [installed SDK links](usage-guide.md#installed-sdk-links) for exporting
 SDK-linked targets and restoring their links in installed consumers.
+
+## Device tests
+
+A library with code a host test cannot establish, such as a hardware layer or a
+transport, adds a device-test image under `tests/device/`:
+
+```text
+tests/device/CMakeLists.txt
+tests/device/main.cpp
+```
+
+The top-level CMakeLists.txt adds it beside `examples/`, in firmware builds of
+the top-level project only, since the host `tests/` tree is not configured in a
+firmware build:
+
+```cmake
+if(PROJECT_IS_TOP_LEVEL AND <PREFIX>_BUILD_FIRMWARE)
+    add_subdirectory(tests/device)
+endif()
+```
+
+`tests/device/CMakeLists.txt` adds the image:
+
+```cmake
+pico_family_add_device_test(<package>_device_tests
+    PACKAGE <package>
+    SOURCES main.cpp
+    LIBRARIES <package>::<library>)
+```
+
+`main.cpp` records each case with `pico_family::device_test::Results`, named
+`<requirement ID> <case-name>`, calls `wait_for_console()`, then
+`report_forever(results)`. The top-level strict target takes
+`VENDOR_SOURCES ${<PREFIX>_BUILD_FIRMWARE}` so the SDK's sources are not compiled
+with `-Werror`. Run it with `device test`; see the
+[device guide](../guides/device.md#device-tests) for the command, the TAP
+subset and the run record.

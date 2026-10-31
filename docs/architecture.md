@@ -18,10 +18,15 @@ and configure real SDK fixtures when PICO_FAMILY_TEST_SDK is supplied.
 
 ## Devices
 
+`device_test/include/pico_family/device_test/` is the firmware half of
+`device test`: `tap.hpp` (host-tested, no SDK) and `run.hpp` (SDK stdio).
+`pico_family_add_device_test` in `cmake/pico_family.cmake` adds an image.
+
 `device.py` owns the single device workflow: host allow-list queries, one
 per-serial process lock, reset, bootloader wait, load, reconnect and console.
 `device_proxy.py` is its JSON/socket client; `device_images.py` selects built
-images and checks credentials. No backend selector or direct USB/serial access
+images and checks credentials; `device_tap.py` judges a device-test stream and
+`device test` applies it to the console capture. No backend selector or direct USB/serial access
 is present. The connection file is found by walking up from the working folder.
 
 `host/device-proxy.ps1` is the only transport. It enforces the host allow-list

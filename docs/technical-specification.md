@@ -184,6 +184,46 @@ a partial distro on failure and has no unregister mode. The shell verify prints
 failed systemd units, wsl.conf and the binfmt listing; it does not attempt
 Windows-process launch.
 
+**AR-16** — `python3 -m infra.pico_tooling device test --serial S --timeout S`
+flashes a device-test image and judges the TAP 14 stream it prints. It takes
+`flash`'s image selection, options and sequence (AR-12) and then the console in
+agent mode (AR-13) under the same lock, with no `--until`: it stops at the first
+complete stream, a `TAP version 14` line followed by a plan or a `Bail out!`
+line, found in the incrementally decoded output with CRLF and CR read as LF. A
+plan with no version line before it is skipped and the next re-emission awaited.
+`--timeout` is required, finite and positive. Board output goes to standard
+output and `--log FILE` appends its exact bytes; a line that is not TAP passes
+through and fails nothing. The verdict goes to standard error: the image's
+identity comment, `==> <requirement ID>: N passed, M failed` for each ID, each
+failed case with its comments, and `==> device test: PASS` or `==> device test:
+FAIL: <reason>`. It exits 0 when every test point is `ok`, numbered 1..N once
+each, with N the plan; 1 for a `not ok`, a `Bail out!`, a count or numbering
+mismatch, a plan of 1..0, a SKIP or TODO directive, a YAML block, no complete
+stream before the deadline, or a failed flash operation; and otherwise with
+AR-13's statuses. `--dry-run` prints the plan and acts on nothing.
+
+**AR-17** — `device_test/include/pico_family/device_test/` holds a firmware
+image's half of AR-16 in namespace `pico_family::device_test`. `tap.hpp` needs
+no SDK, allocation or exceptions: `Results<MaxCases, DetailCap>` records cases
+in fixed storage and `emit` hands the stream to a callback one line at a time:
+the version line, `# <identity>`, each test point `ok|not ok <n> - <requirement
+ID> <case-name>` with its detail comment, then the plan, or `Bail out!`. A detail
+beyond `DetailCap`, a point beyond `POINT_CAP` and an identity beyond
+`IDENTITY_CAP` end in `...`; a line break in recorded text becomes a space; a
+case beyond `MaxCases` ends the run in `Bail out! more than <MaxCases> cases`.
+`run.hpp` uses the Pico SDK's stdio: `wait_for_console` waits up to a timeout for
+the USB console and returns whether it connected, and `report_forever` emits the
+stream and again every period, so a console that attaches late receives a whole
+one. The identity comment is `image <name> <version> board=<board>
+commit=<sha>[-dirty]`. `pico_family_add_device_test(<name> PACKAGE <package>
+SOURCES <file>... [LIBRARIES <target>...])` stops outside a firmware build with a
+message naming the call. In one, it adds the executable and its `.uf2`, applies
+`-Werror` to `SOURCES`, links `<package>_strict`, the headers, `pico_stdlib` and
+`LIBRARIES`, enables USB stdio, disables UART stdio and defines the identity: the
+image name, `PROJECT_VERSION`, `PICO_BOARD`, the configure-time commit of the
+calling project's source and whether its working tree is dirty. Without git the
+commit is `unknown`; the configure never fails for it.
+
 `host/device-proxy.ps1` runs in Windows PowerShell 5.1 without installing
 dependencies. It listens only on its `-ListenAddress` unicast IPv4 literal
 (default `127.0.0.1` for CI), and requires a per-workspace token. The connection
@@ -237,6 +277,8 @@ allowed or matched by a load.
 | AR-13 | [Tests and criteria](#ar-13-verification) |
 | AR-14 | [Tests and criteria](#ar-14-verification) |
 | AR-15 | [Tests and criteria](#ar-15-verification) |
+| AR-16 | [Tests and criteria](#ar-16-verification) |
+| AR-17 | [Tests and criteria](#ar-17-verification) |
 
 ### AR-1 verification
 
@@ -430,6 +472,81 @@ refusal against its compiler diagnostic and the call's own text.
 - `test_device_proxy.py`:
   `test_proxy_connect_failure_names_endpoint_and_launcher_once`;
   refusal/timeout names the endpoint and launcher without retry.
+
+### AR-16 verification
+
+- `test_device_tap.py`:
+  `test_every_point_ok_and_counted_by_the_plan_passes`;
+  a complete all-`ok` stream passes and its report names each requirement ID.
+- `test_device_tap.py`:
+  `test_a_not_ok_fails_and_names_its_case_and_comments`;
+  a failed case is named with its comments.
+- `test_device_tap.py`:
+  `test_bail_out_fails_with_its_reason_in_any_case`;
+  `Bail out!` fails in any letter case.
+- `test_device_tap.py`:
+  `test_a_count_or_numbering_mismatch_fails`;
+  a plan that disagrees with the points, repeated or unordered numbers and a plan
+  of 1..0 fail.
+- `test_device_tap.py`:
+  `test_a_skip_or_todo_directive_fails`, `test_a_yaml_block_fails`;
+  the constructs outside the subset fail.
+- `test_device_tap.py`:
+  `test_crlf_and_cr_read_as_lf`,
+  `test_lines_that_are_not_tap_are_passed_over`;
+  line ends are normalized and other lines fail nothing.
+- `test_device_tap.py`:
+  `test_a_stream_without_a_plan_is_not_complete`,
+  `test_the_last_line_counts_only_once_it_is_terminated`,
+  `test_a_plan_joined_midway_is_skipped_for_the_next_stream`,
+  `test_a_stream_cut_short_is_abandoned_for_the_next_version_line`,
+  `test_a_repeated_stream_is_judged_once_from_its_first_copy`;
+  the stop condition is a complete stream and nothing earlier.
+- `test_device_proxy.py`:
+  `test_device_test_flashes_reads_the_stream_and_judges_it`;
+  the fake host records the reset, load and console sequence, board bytes reach
+  the output and the log unchanged, and the verdict and exit status follow.
+- `test_device_proxy.py`:
+  `test_device_test_fails_a_bad_stream_with_one`;
+  a `not ok`, a `Bail out!` and a plan mismatch exit 1.
+- `test_device_proxy.py`:
+  `test_device_test_without_a_complete_stream_fails_at_the_deadline`,
+  `test_device_test_skips_a_plan_joined_midway_and_waits_for_the_next`;
+  the deadline fails and keeps the raw capture; a joined stream is skipped.
+- `test_device_proxy.py`:
+  `test_device_test_dry_run_acts_on_nothing`,
+  `test_device_test_flash_failure_is_one`,
+  `test_device_test_requires_a_timeout`,
+  `test_device_test_cannot_run_without_a_finite_positive_timeout`;
+  dry-run makes no device request, a flash failure exits 1 and a missing or
+  invalid timeout cannot run.
+
+### AR-17 verification
+
+`tools/testing/tap_test.cpp` supplies the DeviceTestTap tests:
+`AStreamIsVersionIdentityPointsAndPlanLast`, `NoCasesIsAPlanOfZero`,
+`ADetailBeyondItsCapIsTruncatedAndMarked`,
+`ARecordBeyondTheCapacityEndsTheRunInABailOut`,
+`ABailOutReplacesThePlanAndTheFirstOneStands`,
+`ALineBreakInTextNeverStartsALineOfItsOwn` and
+`ATooLongPointOrIdentityEndsInAnEllipsisWithinItsCap`.
+`tools/testing/run_test.cpp` compiles `run.hpp` against declarations of the
+three SDK calls it makes and supplies the DeviceTestRun tests:
+`WaitingEndsAtOnceWhenAConsoleIsAlreadyOpen`, `WaitingEndsWhenTheConsoleOpens`,
+`WaitingGivesUpAtTheTimeoutAndReportsIt`,
+`TheIdentityNamesTheImageItsBoardAndTheDirtyCommit` and
+`ALineIsWrittenWithItsLineEnd`.
+
+- `test_cmake.py`:
+  `test_a_device_test_without_the_sdk_stops_naming_the_call`,
+  `test_a_device_test_refuses_bad_arguments`;
+  the function refuses a host configure and bad arguments.
+- `test_cmake.py`:
+  `test_a_real_sdk_device_test_builds_an_uf2_that_names_its_source`,
+  `test_a_real_sdk_device_test_marks_a_dirty_source`;
+  with a real SDK (`PICO_FAMILY_TEST_SDK`) the image builds with no warning
+  against the real `run.hpp` and carries the name, version, board, commit and
+  dirty flag; these skip without the SDK.
 
 AR-7 scaffold controls: `test_scaffold_history_records_only_the_distribution_url`
 checks every committed .gitmodules using a distinct non-local URL;
