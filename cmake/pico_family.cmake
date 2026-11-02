@@ -528,3 +528,78 @@ function(pico_family_add_cross_probe PICO_FAMILY_NAME)
             LINKER:--defsym=${syscall}=pico_family_probe_unsupported)
     endforeach()
 endfunction()
+
+# The commit and the dirty flag of the calling project's source, for an image's
+# identity. Both are asked of git at configure time; no git, or a source that is
+# not a checkout, gives the commit "unknown" and never fails the configure.
+function(_pico_family_source_identity PICO_FAMILY_COMMIT_OUT PICO_FAMILY_DIRTY_OUT)
+    set(commit unknown)
+    set(dirty 0)
+    find_package(Git QUIET)
+    if(GIT_FOUND)
+        execute_process(COMMAND "${GIT_EXECUTABLE}" rev-parse HEAD
+            WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+            RESULT_VARIABLE head_status OUTPUT_VARIABLE head
+            OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+        if(head_status EQUAL 0 AND head MATCHES "^[0-9a-f]+$")
+            set(commit "${head}")
+            execute_process(COMMAND "${GIT_EXECUTABLE}" status --porcelain
+                WORKING_DIRECTORY "${PROJECT_SOURCE_DIR}"
+                RESULT_VARIABLE state_status OUTPUT_VARIABLE state
+                OUTPUT_STRIP_TRAILING_WHITESPACE ERROR_QUIET)
+            # A status that cannot be read is a state that cannot be vouched for.
+            if(NOT state_status EQUAL 0 OR state)
+                set(dirty 1)
+            endif()
+        endif()
+    endif()
+    set(${PICO_FAMILY_COMMIT_OUT} "${commit}" PARENT_SCOPE)
+    set(${PICO_FAMILY_DIRTY_OUT} "${dirty}" PARENT_SCOPE)
+endfunction()
+
+# A device-test image: a firmware executable that runs its cases on the board and
+# reports them as a TAP stream over USB stdio (AR-17). Firmware builds only. The
+# image names itself, its version, its board and the commit of its source, which
+# `device test` repeats in its verdict. dev.py build configures on every call, so
+# the commit is current for each build. A firmware build compiles the SDK's
+# sources into the image, so the package's strict target takes VENDOR_SOURCES
+# there, as for a library's examples, and only SOURCES are compiled with -Werror.
+function(pico_family_add_device_test PICO_FAMILY_NAME)
+    cmake_parse_arguments(PICO_FAMILY_DT "" "PACKAGE" "SOURCES;LIBRARIES" ${ARGN})
+    _pico_family_check_arguments(PICO_FAMILY_DT
+        "pico_family_add_device_test(${PICO_FAMILY_NAME})")
+    if(NOT PICO_FAMILY_DT_PACKAGE OR NOT PICO_FAMILY_DT_SOURCES)
+        message(FATAL_ERROR "pico_family_add_device_test(${PICO_FAMILY_NAME}): "
+            "PACKAGE and SOURCES are both required")
+    endif()
+    if(NOT TARGET pico_stdlib)
+        message(FATAL_ERROR "pico_family_add_device_test(${PICO_FAMILY_NAME}): "
+            "a device test is a firmware image; configure with the Pico SDK "
+            "initialized (pico_family_init_sdk(TRUE)) before this call")
+    endif()
+    if(NOT TARGET pico_family_device_test)
+        add_library(pico_family_device_test INTERFACE)
+        target_include_directories(pico_family_device_test INTERFACE
+            "${CMAKE_CURRENT_FUNCTION_LIST_DIR}/../device_test/include")
+    endif()
+    _pico_family_source_identity(commit dirty)
+    set(version "${PROJECT_VERSION}")
+    if(NOT version)
+        set(version unversioned)
+    endif()
+    add_executable(${PICO_FAMILY_NAME} ${PICO_FAMILY_DT_SOURCES})
+    house_cxx_werror_sources(${PICO_FAMILY_DT_SOURCES})
+    target_compile_features(${PICO_FAMILY_NAME} PRIVATE cxx_std_20)
+    target_link_libraries(${PICO_FAMILY_NAME} PRIVATE
+        ${PICO_FAMILY_DT_PACKAGE}_strict pico_family_device_test pico_stdlib
+        ${PICO_FAMILY_DT_LIBRARIES})
+    target_compile_definitions(${PICO_FAMILY_NAME} PRIVATE
+        "PICO_FAMILY_DEVICE_TEST_NAME=\"${PICO_FAMILY_NAME}\""
+        "PICO_FAMILY_DEVICE_TEST_VERSION=\"${version}\""
+        "PICO_FAMILY_DEVICE_TEST_BOARD=\"${PICO_BOARD}\""
+        "PICO_FAMILY_DEVICE_TEST_COMMIT=\"${commit}\""
+        PICO_FAMILY_DEVICE_TEST_DIRTY=${dirty})
+    pico_enable_stdio_usb(${PICO_FAMILY_NAME} 1)
+    pico_enable_stdio_uart(${PICO_FAMILY_NAME} 0)
+    pico_add_extra_outputs(${PICO_FAMILY_NAME})
+endfunction()
