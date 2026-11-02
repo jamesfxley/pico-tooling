@@ -198,8 +198,9 @@ identity comment, `==> <requirement ID>: N passed, M failed` for each ID, each
 failed case with its comments, and `==> device test: PASS` or `==> device test:
 FAIL: <reason>`. It exits 0 when every test point is `ok`, numbered 1..N once
 each, with N the plan; 1 for a `not ok`, a `Bail out!`, a count or numbering
-mismatch, a plan of 1..0, a SKIP or TODO directive, a YAML block, no complete
-stream before the deadline, or a failed flash operation; and otherwise with
+mismatch, a plan of 1..0, a SKIP or TODO directive, a YAML block, an identity
+whose commit is `-dirty`, `unknown` or absent (the run would not name the source
+it tests), no complete stream before the deadline, or a failed flash operation; and otherwise with
 AR-13's statuses. `--dry-run` prints the plan and acts on nothing.
 
 **AR-17** — `device_test/include/pico_family/device_test/` holds a firmware
@@ -492,6 +493,12 @@ refusal against its compiler diagnostic and the call's own text.
   `test_a_skip_or_todo_directive_fails`, `test_a_yaml_block_fails`;
   the constructs outside the subset fail.
 - `test_device_tap.py`:
+  `test_an_identity_that_is_not_a_plain_commit_fails`,
+  `test_a_missing_identity_is_said_so_and_fails`,
+  `test_an_identity_with_no_commit_field_fails`,
+  `test_a_clean_forty_hex_commit_passes`;
+  a `-dirty`, `unknown`, empty or absent commit fails; a plain commit passes.
+- `test_device_tap.py`:
   `test_crlf_and_cr_read_as_lf`,
   `test_lines_that_are_not_tap_are_passed_over`;
   line ends are normalized and other lines fail nothing.
@@ -508,7 +515,7 @@ refusal against its compiler diagnostic and the call's own text.
   the output and the log unchanged, and the verdict and exit status follow.
 - `test_device_proxy.py`:
   `test_device_test_fails_a_bad_stream_with_one`;
-  a `not ok`, a `Bail out!` and a plan mismatch exit 1.
+  a `not ok`, a `Bail out!`, a plan mismatch and a `-dirty` image exit 1.
 - `test_device_proxy.py`:
   `test_device_test_without_a_complete_stream_fails_at_the_deadline`,
   `test_device_test_skips_a_plan_joined_midway_and_waits_for_the_next`;

@@ -16,6 +16,8 @@ POINT = re.compile(r"(not ok|ok)(?=\s|$)(?:\s+(\d+))?(?:\s+-)?\s*(.*)$")
 DIRECTIVE = re.compile(r"\s#\s*(skip|todo)\b", re.IGNORECASE)
 COMMENT = re.compile(r"\s*#\s?(.*)$")
 IDENTITY = re.compile(r"image\s.*")
+COMMIT = re.compile(r"(?:^|\s)commit=(\S*)")
+PLAIN_COMMIT = re.compile(r"[0-9a-f]+")
 YAML_START = re.compile(r"\s+---\s*$")
 NO_REQUIREMENT = "(none)"
 
@@ -102,6 +104,12 @@ def take_point(verdict, line, point):
     return detail
 
 
+def names_a_commit(identity):
+    """Whether the identity comment names a plain commit: not -dirty, not unknown."""
+    found = COMMIT.search(identity or "")
+    return found is not None and PLAIN_COMMIT.fullmatch(found.group(1)) is not None
+
+
 def finish(verdict):
     """Add the reasons a stream fails that no single line carries."""
     if verdict.bail is not None:
@@ -115,6 +123,10 @@ def finish(verdict):
         )
     elif verdict.numbers != list(range(1, verdict.planned + 1)):
         verdict.reasons.append("the test point numbers are not 1..N, each once")
+    if not names_a_commit(verdict.identity):
+        found = COMMIT.search(verdict.identity or "")
+        shown = f"commit={found.group(1)}" if found else "no commit in the identity"
+        verdict.reasons.append(f"the image's source is not a commit ({shown})")
     failed = sum(failed for _, failed in verdict.counts.values())
     if failed:
         verdict.reasons.insert(

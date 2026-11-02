@@ -651,8 +651,9 @@ def test_proxy_discovery_cannot_escape_the_test_directory(tmp_path, relative):
         decoy.unlink()
 
 
+COMMIT = "0123456789abcdef0123456789abcdef01234567"
 STREAM = (
-    "TAP version 14\n# image demo 0.1.0 board=pico2_w commit=abc123\n"
+    f"TAP version 14\n# image demo 0.1.0 board=pico2_w commit={COMMIT}\n"
     "ok 1 - HR-4 a\nok 2 - HR-5 b\n1..2\n"
 )
 
@@ -699,6 +700,10 @@ def test_device_test_flashes_reads_the_stream_and_judges_it(proxy):
         (STREAM.replace("ok 2", "not ok 2"), "1 test point not ok"),
         ("TAP version 14\nok 1 - HR-4 a\nBail out! hub silent\n", "Bail out! hub"),
         (STREAM.replace("1..2", "1..3"), "the plan is 1..3 but 2"),
+        (
+            STREAM.replace(COMMIT, COMMIT + "-dirty"),
+            f"the image's source is not a commit (commit={COMMIT}-dirty)",
+        ),
     ],
 )
 def test_device_test_fails_a_bad_stream_with_one(proxy, stream, message):

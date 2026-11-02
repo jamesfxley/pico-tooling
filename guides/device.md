@@ -254,8 +254,9 @@ requirement ID (`==> HR-4: 2 passed, 0 failed`), each failed case with its
 comment lines, and a last line, `==> device test: PASS` or `==> device test:
 FAIL: <reason>`. Status 0 means every test point is `ok`, numbered 1..N once
 each, with N the plan. Status 1 is a `not ok`, a `Bail out!`, a count or
-numbering mismatch, a plan of 1..0, no complete stream before the deadline, or
-a failed flash step; 2, 3, 130 and 143 are as for the console. `--dry-run`
+numbering mismatch, a plan of 1..0, an identity whose commit is `-dirty`,
+`unknown` or absent, no complete stream before the deadline, or a failed flash
+step; 2, 3, 130 and 143 are as for the console. `--dry-run`
 prints the plan and acts on nothing.
 
 The image emits this subset of TAP 14, which the command and `tap.hpp` share:
@@ -292,6 +293,10 @@ source, with `-dirty` when its working tree has changes. Without git the commit
 is `unknown`. The identity is read when the build is configured: `dev.py build`
 configures on every call, but a bare `cmake --build` after a commit or an edit
 keeps the identity of the last configure.
+
+A run is evidence for a pull request only when the image names the commit it
+was built from, so a `-dirty`, `unknown` or missing commit fails the run:
+commit locally, then build and run.
 
 Record a run in the pull request's Verification section: the board serial, the
 image's commit from the identity line, the command, and the verdict output. A

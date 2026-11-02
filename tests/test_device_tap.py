@@ -5,7 +5,8 @@ import pytest
 
 from pico_tooling.device_tap import first_stream, judge, report
 
-HEAD = "TAP version 14\n# image demo 0.1.0 board=pico2_w commit=abc123\n"
+COMMIT = "0123456789abcdef0123456789abcdef01234567"
+HEAD = "TAP version 14\n# image demo 0.1.0 board=pico2_w commit=" + COMMIT + "\n"
 PASSING = HEAD + "ok 1 - HR-4 a\nok 2 - HR-4 b\nok 3 - HR-5 c\n1..3\n"
 
 
@@ -19,7 +20,7 @@ def test_every_point_ok_and_counted_by_the_plan_passes():
     verdict = verdict_of(PASSING)
     assert not verdict.reasons
     assert report(verdict) == [
-        "==> image demo 0.1.0 board=pico2_w commit=abc123",
+        f"==> image demo 0.1.0 board=pico2_w commit={COMMIT}",
         "==> HR-4: 2 passed, 0 failed",
         "==> HR-5: 1 passed, 0 failed",
         "==> device test: PASS",
@@ -111,6 +112,30 @@ def test_a_repeated_stream_is_judged_once_from_its_first_copy():
     assert not judge(stream).reasons
 
 
-def test_a_missing_identity_is_said_so():
-    lines = report(verdict_of("TAP version 14\nok 1 - HR-4 a\n1..1\n"))
-    assert lines[0] == "==> no image identity comment in the stream"
+def test_a_missing_identity_is_said_so_and_fails():
+    verdict = verdict_of("TAP version 14\nok 1 - HR-4 a\n1..1\n")
+    assert report(verdict)[0] == "==> no image identity comment in the stream"
+    assert verdict.reasons == [
+        "the image's source is not a commit (no commit in the identity)",
+    ]
+
+
+@pytest.mark.parametrize("commit", [COMMIT + "-dirty", "unknown", "", "ABC", "main"])
+def test_an_identity_that_is_not_a_plain_commit_fails(commit):
+    text = f"TAP version 14\n# image demo 0.1.0 board=b commit={commit}\n"
+    verdict = verdict_of(text + "ok 1 - HR-4 a\n1..1\n")
+    assert verdict.reasons == [
+        f"the image's source is not a commit (commit={commit})",
+    ]
+    assert report(verdict)[-1].startswith("==> device test: FAIL: the image's source")
+
+
+def test_an_identity_with_no_commit_field_fails():
+    text = "TAP version 14\n# image demo 0.1.0 board=b\nok 1 - HR-4 a\n1..1\n"
+    assert verdict_of(text).reasons == [
+        "the image's source is not a commit (no commit in the identity)",
+    ]
+
+
+def test_a_clean_forty_hex_commit_passes():
+    assert not verdict_of(PASSING).reasons
