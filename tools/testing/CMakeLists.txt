@@ -80,3 +80,41 @@ foreach(PICO_TOOLING_PROBE_ROW IN LISTS PICO_TOOLING_PROBE_ROWS)
     set_tests_properties(${PICO_TOOLING_PROBE_TARGET} PROPERTIES
         RESOURCE_LOCK pico_tooling_build_tree)
 endforeach()
+
+# A device-test image's output convention (AR-16). The header includes the SDK,
+# so the host compiles it against declarations of the SDK calls it makes
+# (fake_sdk/); what the calls do on a board is not run here. The image names its
+# source by compile definitions, so the test is built once per kind of source:
+# a commit, a dirty tree, and no git.
+add_library(pico_tooling_device_test INTERFACE)
+target_include_directories(pico_tooling_device_test INTERFACE
+    ${PROJECT_SOURCE_DIR}/device_test/include)
+
+foreach(PICO_TOOLING_SOURCE IN ITEMS CLEAN DIRTY UNKNOWN)
+    string(TOLOWER ${PICO_TOOLING_SOURCE} PICO_TOOLING_SOURCE_LOWER)
+    set(PICO_TOOLING_COMMIT abc123)
+    set(PICO_TOOLING_IS_DIRTY 0)
+    if(PICO_TOOLING_SOURCE STREQUAL "DIRTY")
+        set(PICO_TOOLING_IS_DIRTY 1)
+    elseif(PICO_TOOLING_SOURCE STREQUAL "UNKNOWN")
+        set(PICO_TOOLING_COMMIT unknown)
+    endif()
+    set(PICO_TOOLING_TARGET pico_tooling_device_test_${PICO_TOOLING_SOURCE_LOWER}_tests)
+    add_executable(${PICO_TOOLING_TARGET} device_test_test.cpp)
+    target_include_directories(${PICO_TOOLING_TARGET} PRIVATE fake_sdk)
+    target_link_libraries(${PICO_TOOLING_TARGET} PRIVATE
+        pico_tooling_strict
+        pico_tooling_device_test
+        GTest::gtest_main
+    )
+    target_compile_definitions(${PICO_TOOLING_TARGET} PRIVATE
+        SOURCE_${PICO_TOOLING_SOURCE}
+        "PICO_FAMILY_DEVICE_TEST_NAME=\"demo_tests\""
+        "PICO_FAMILY_DEVICE_TEST_VERSION=\"1.2.3\""
+        "PICO_FAMILY_DEVICE_TEST_BOARD=\"pico2_w\""
+        "PICO_FAMILY_DEVICE_TEST_COMMIT=\"${PICO_TOOLING_COMMIT}\""
+        PICO_FAMILY_DEVICE_TEST_DIRTY=${PICO_TOOLING_IS_DIRTY})
+    # One name per kind, so a case runs in each build without clashing.
+    gtest_discover_tests(${PICO_TOOLING_TARGET}
+        TEST_SUFFIX _${PICO_TOOLING_SOURCE_LOWER})
+endforeach()

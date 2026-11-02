@@ -184,6 +184,38 @@ a partial distro on failure and has no unregister mode. The shell verify prints
 failed systemd units, wsl.conf and the binfmt listing; it does not attempt
 Windows-process launch.
 
+**AR-16** — A device-test image reports through the Pico SDK's stdio using
+`device_test/include/pico_family/device_test.hpp`, namespace
+`pico_family::device_test`. `Run` waits up to 30 seconds for the USB console,
+counting down the remaining time so the wait cannot wrap, then prints
+`device-test: image <name> <version> board=<board> commit=<sha>[-dirty]`.
+`check(requirement, name, passed, detail)` prints `PASS|FAIL <requirement>
+<name>[: <detail>]` as the case finishes and counts it. `finish()` prints
+`device-test: PASS (<n> cases)` or `device-test: FAIL (<reason>)` and then idles;
+`report()` prints the same last line and returns whether the run passed. The run
+fails when a case failed (`<k> of <n> failed`), when no case ran (`no cases`),
+when a case's requirement is not an ID of the shape `[A-Z][A-Z0-9]*-[0-9]+`
+(`case <i> does not start with a requirement ID`, the first such case, which also
+prints as `FAIL`), when the image names a dirty tree (`dirty source`) and when it
+names no commit (`source commit unknown`); several reasons join with `; `. A line
+break in caller text prints as a space, so a case cannot forge a line. Nothing is
+stored beyond two counters and an index. A crash or hang prints no last line, so
+a host waiting for one times out. `device flash --console --until` ends on the
+last line whatever the verdict, so the verdict is a search of the log for
+`device-test: PASS`. The header needs the Pico SDK and the identity definitions of
+AR-17.
+
+**AR-17** — `pico_family_add_device_test(<name> PACKAGE <package> SOURCES
+<file>... [LIBRARIES <target>...])` stops outside a firmware build with a message
+naming the call, and refuses a missing `PACKAGE` or `SOURCES`. In a firmware
+build it adds the executable and its `.uf2`, applies `-Werror` to `SOURCES`,
+links `<package>_strict`, the interface target `pico_family_device_test` (the
+header's include directory), `pico_stdlib` and `LIBRARIES`, enables USB stdio,
+disables UART stdio and defines the identity the header prints: the image name,
+`PROJECT_VERSION`, `PICO_BOARD`, the configure-time commit of the calling
+project's source and whether its working tree is dirty. Without git the commit is
+`unknown`; the configure never fails for it.
+
 `host/device-proxy.ps1` runs in Windows PowerShell 5.1 without installing
 dependencies. It listens only on its `-ListenAddress` unicast IPv4 literal
 (default `127.0.0.1` for CI), and requires a per-workspace token. The connection
@@ -237,6 +269,8 @@ allowed or matched by a load.
 | AR-13 | [Tests and criteria](#ar-13-verification) |
 | AR-14 | [Tests and criteria](#ar-14-verification) |
 | AR-15 | [Tests and criteria](#ar-15-verification) |
+| AR-16 | [Tests and criteria](#ar-16-verification) |
+| AR-17 | [Tests and criteria](#ar-17-verification) |
 
 ### AR-1 verification
 
@@ -430,6 +464,38 @@ refusal against its compiler diagnostic and the call's own text.
 - `test_device_proxy.py`:
   `test_proxy_connect_failure_names_endpoint_and_launcher_once`;
   refusal/timeout names the endpoint and launcher without retry.
+
+### AR-16 verification
+
+`tools/testing/device_test_test.cpp` supplies the DeviceTest tests over
+declarations of the SDK calls the header makes. It is built three times, for a
+clean commit, a dirty tree and no git, and each build runs every case:
+`WaitingEndsAtOnceWhenAConsoleIsAlreadyOpen`, `WaitingEndsWhenTheConsoleOpens`,
+`WaitingGivesUpAfterThirtySeconds` and
+`WaitingNeverSleepsPastATimeoutThatIsNotAWholePollCount` check the console wait;
+`ARunWaitsForTheConsoleThenPrintsItsIdentity` checks the identity line, with and
+without `-dirty` and `unknown`; `ACheckPrintsItsLineAtOnce` and
+`ALineBreakInCallerTextPrintsAsASpace` check the case lines;
+`AllCasesPassingEndsInPassWithTheCountUnlessTheSourceFails`,
+`FailedCasesAreCountedOfAll`, `NoCasesFails`,
+`ARequirementThatIsNotAnIdFailsTheCaseAndNamesIt`,
+`ARequirementThatIsAnIdPasses` and `SeveralReasonsJoinWithASemicolon` check the
+last line and each FAIL reason; the dirty-tree and no-git builds check `dirty
+source` and `source commit unknown`. `finish()` never returns, so it is compiled,
+not run.
+
+### AR-17 verification
+
+- `test_cmake.py`:
+  `test_a_device_test_without_the_sdk_stops_naming_the_call`,
+  `test_a_device_test_refuses_bad_arguments`;
+  the function refuses a host configure and bad arguments.
+- `test_cmake.py`:
+  `test_a_real_sdk_device_test_builds_an_uf2_that_names_its_source`,
+  `test_a_real_sdk_device_test_marks_a_dirty_source`;
+  with a real SDK (`PICO_FAMILY_TEST_SDK`) an image using the header builds with
+  no warning and carries the name, version, board, commit and dirty flag; these
+  skip without the SDK.
 
 AR-7 scaffold controls: `test_scaffold_history_records_only_the_distribution_url`
 checks every committed .gitmodules using a distinct non-local URL;

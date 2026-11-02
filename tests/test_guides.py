@@ -23,8 +23,9 @@ DOCUMENTS = [
     "docs/new-library.md",
 ]
 LINK = re.compile(r"\]\(([^)#\s]+)(?:#[^)]*)?\)")
-# Flags of other programs the device guide quotes: picotool's own.
-PICOTOOL_FLAGS = {"--ser", "--verify", "--execute", "--force", "--usb"}
+# Flags of other programs the device guide quotes: picotool's own, and dev.py's
+# --tree in the device-test run command.
+PICOTOOL_FLAGS = {"--ser", "--verify", "--execute", "--force", "--usb", "--tree"}
 
 
 @pytest.mark.parametrize("name", DOCUMENTS)

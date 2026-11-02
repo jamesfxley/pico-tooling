@@ -18,6 +18,10 @@ and configure real SDK fixtures when PICO_FAMILY_TEST_SDK is supplied.
 
 ## Devices
 
+`device_test/include/pico_family/device_test.hpp` is the firmware side of a
+device test: it prints the output convention the device guide describes.
+`pico_family_add_device_test` in `cmake/pico_family.cmake` adds an image.
+
 `device.py` owns the single device workflow: host allow-list queries, one
 per-serial process lock, reset, bootloader wait, load, reconnect and console.
 `device_proxy.py` is its JSON/socket client; `device_images.py` selects built
