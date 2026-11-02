@@ -1,8 +1,9 @@
 // SPDX-License-Identifier: MIT
 #pragma once
 // Run a device-test image on the board: wait for the console, then report the
-// results over the SDK's stdio (AR-17). Firmware only; it compiles against the
-// Pico SDK and has no host test. The identity definitions come from
+// results over the SDK's stdio (AR-17). For the image it compiles against the
+// Pico SDK; the host test compiles it against declarations of the three SDK
+// calls it makes. The identity definitions come from
 // pico_family_add_device_test().
 
 #include <cstddef>
