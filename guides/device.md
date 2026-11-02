@@ -233,6 +233,65 @@ bytes in either mode. Invalid options or an unusable log exit 2. Output before
 the console attaches is not captured; use `flash --console` and firmware that
 waits for USB connection or reports on request when startup output matters.
 
+## Device tests
+
+A device test runs the cases a host test cannot establish, on the board, and
+reports each one on the console. It has no command of its own: it is an image
+run with `device flash --console`, and the verdict is a search of the log.
+
+The image prints:
+
+```text
+device-test: image pico_bno085_device_tests 0.1.0 board=pico2_w commit=<sha>[-dirty]
+PASS HR-4 i2c-refuses-swapped-sda-scl
+FAIL HR-4 spi-refuses-the-other-instance: init=accepted pads=changed
+device-test: FAIL (1 of 8 failed)
+```
+
+- One line per case, printed when the case finishes: `PASS|FAIL <requirement
+  ID> <case-name>[: <detail>]`. A case that cites two IDs is two cases.
+- The last line is `device-test: PASS (<n> cases)` or `device-test: FAIL
+  (<reason>)`. It is FAIL when a case failed, when no case ran, when a case's
+  requirement is not an ID (`[A-Z][A-Z0-9]*-[0-9]+`), or when the image was
+  built from a dirty tree (`-dirty`) or without git (`commit=unknown`).
+- A crash or a hang prints no last line, so the run times out and fails.
+- A line break in a case's text prints as a space, so a case cannot forge a
+  line.
+
+Run it from the repository, after committing:
+
+```sh
+python3 dev.py build --tree firmware
+rm -f "$RUN/device-test.log"
+python3 -m infra.pico_tooling device flash --serial <S> --console \
+    --until '(?m)^device-test: (PASS|FAIL)' --timeout 60 \
+    --log "$RUN/device-test.log" tests/device \
+  && grep -q '^device-test: PASS' "$RUN/device-test.log"
+```
+
+Exit status 0 means the run passed. `--log` appends, so the `rm -f` starts each
+run with an empty log; otherwise a PASS from an earlier run would satisfy the
+grep. The flash command's match exits 0 on FAIL as well as on PASS, so the grep
+is the verdict. The image waits up to 30 seconds for the USB console before it
+prints, because output sent before a console attaches is lost; whether DTR
+reaches the board is UNCONFIRMED, below. Naming `tests/device` selects
+`build-firmware/tests/device/*.uf2`.
+
+The image's source is read when the build is configured: `dev.py build`
+configures on every call, but a build run straight through CMake after a commit
+or an edit keeps the identity of the last configure. Commit before the run. A
+run is evidence for a pull request only when the identity line names the pull
+request's head commit with no `-dirty`; review checks that, since the tooling
+does not. Record the run in the pull request's Verification section: the board
+serial, the identity line, the command and the verdict line.
+
+A device test measures nothing. A measurement is a benchmark, and benchmarks are
+a separate tier.
+
+The firmware side is `device_test/include/pico_family/device_test.hpp`, with
+`pico_family_add_device_test` to add the image (see the usage guide and
+`docs/new-library.md`).
+
 ## Protocol
 
 One newline-delimited UTF-8 JSON request per TCP connection, always with

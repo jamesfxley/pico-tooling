@@ -11,3 +11,9 @@ Reason: manual host execution is not established by script inventory or parsing.
 
 AR-15: Validate the proxy's serial-to-port and bootloader-drive mapping on hardware.
 Reason: physical serial mapping needs host execution and a connected board.
+
+AR-16: Validate on a board that Run waits for the USB console and that its lines reach a console opened by device flash --console.
+Reason: the host test uses declarations of the SDK calls, not the SDK's stdio on a board.
+
+AR-17: Validate that an image built by the helper flashes and runs on a board and prints its identity.
+Reason: the CMake tests build the image and check its definitions; they do not run it.
