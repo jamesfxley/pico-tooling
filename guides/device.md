@@ -291,8 +291,8 @@ the re-emission makes the run independent of it. A library adds the image with
 which defines the identity: name, version, board and the commit of the library's
 source, with `-dirty` when its working tree has changes. Without git the commit
 is `unknown`. The identity is read when the build is configured: `dev.py build`
-configures on every call, but a bare `cmake --build` after a commit or an edit
-keeps the identity of the last configure.
+configures on every call, but a build run straight through CMake after a commit
+or an edit keeps the identity of the last configure.
 
 A run is evidence for a pull request only when the image names the commit it
 was built from, so a `-dirty`, `unknown` or missing commit fails the run:
