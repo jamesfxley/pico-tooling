@@ -289,7 +289,9 @@ the re-emission makes the run independent of it. A library adds the image with
 `pico_family_add_device_test` (see the usage guide and `docs/new-library.md`),
 which defines the identity: name, version, board and the commit of the library's
 source, with `-dirty` when its working tree has changes. Without git the commit
-is `unknown`.
+is `unknown`. The identity is read when the build is configured: `dev.py build`
+configures on every call, but a bare `cmake --build` after a commit or an edit
+keeps the identity of the last configure.
 
 Record a run in the pull request's Verification section: the board serial, the
 image's commit from the identity line, the command, and the verdict output. A
