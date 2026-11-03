@@ -77,7 +77,7 @@ device-proxy.json, device-proxy.log and devices.toml. Subdirectories are refused
 of at least three seconds produces one ISO-UTC timestamped line with the command,
 serial when given, accept-to-handler queue time and handler-to-reply time.
 An `open` timing ends at its JSON reply, excluding the serial stream lifetime.
-The log never includes the workspace token.
+The slow-request line never includes the workspace token.
 
 Only the firewall operation requests elevation. Setup creates the inbound
 TCP rule `pico-device-proxy-wsl`, on the configured port (default 47600),

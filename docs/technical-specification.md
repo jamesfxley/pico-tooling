@@ -166,7 +166,8 @@ not ready. Requests are not retried by the transport.
 The host logs requests with queue or handling time of at least three seconds in
 `device-proxy.log`, once at reply send, using an ISO-UTC timestamp, command,
 serial when given, accept-to-handler time and handler-to-reply time. For `open`
-this excludes the raw stream lifetime. Tokens are never logged.
+this excludes the raw stream lifetime. The slow-request line never includes the
+token.
 
 **AR-13** — The standard-library console requests 115200 baud from the proxy and
 reads its raw byte stream, reconnecting using the same serial after disconnects.
