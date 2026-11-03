@@ -154,6 +154,20 @@ retain their checks. Several images or ports are listed, never guessed. Missing
 or unreachable setup exits 2 with the setup instructions. One lock per board
 spans flashing and any following console. A held lock fails naming its holder.
 No direct serial access or platform detection is provided.
+Proxy connections have a 10-second connect timeout and one attempt. Each request
+has one 30-second reply wait, capped by any active console or polling deadline.
+A probe reply timeout counts as not ready; polling continues within its remaining
+budget and ends with the existing BOOTSEL, reconnect or console timeout finding.
+Other probe refusals retain their statuses. Outside polling, a reply timeout
+exits 1 naming the request and its reply wait; early closure and invalid replies
+also name the request. An expired deadline before connecting or sending exits 1
+naming the unsent request, without claiming a reply failure; polling treats it as
+not ready. Requests are not retried by the transport.
+The host logs requests with queue or handling time of at least three seconds in
+`device-proxy.log`, once at reply send, using an ISO-UTC timestamp, command,
+serial when given, accept-to-handler time and handler-to-reply time. For `open`
+this excludes the raw stream lifetime. The slow-request line never includes the
+token.
 
 **AR-13** — The standard-library console requests 115200 baud from the proxy and
 reads its raw byte stream, reconnecting using the same serial after disconnects.
@@ -414,6 +428,31 @@ allowed or matched by a load.
 ### AR-12 verification
 
 - `test_device_proxy.py`:
+  `test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout`;
+  a modeled 12-second list reply succeeds beyond the connect bound.
+- `test_device_proxy.py`:
+  `test_reply_timeout_outside_poll_names_request_and_wait`;
+  a reply timeout exits 1 naming the request and wait without retrying.
+- `test_device_proxy.py`:
+  `test_bootsel_probe_reply_timeout_retries_and_flash_completes`;
+  polling continues after a reply timeout and flashing completes.
+- `test_device_proxy.py`:
+  `test_bootsel_probe_reply_wait_is_capped_by_loop_budget`;
+  a probe cannot outwait BOOTSEL's budget and the budget finding applies.
+- `test_device_proxy.py`:
+  `test_invalid_or_closed_reply_names_request`;
+  invalid and closed reply findings name the request without its token.
+- `test_device_proxy.py`:
+  `test_expired_deadline_before_send_does_not_blame_proxy`;
+  expiry before connecting or sending names the unsent request with status 1.
+- `test_device_proxy.py`:
+  `test_poll_treats_deadline_exhausted_before_request_as_not_ready`;
+  polling catches pre-request deadline exhaustion without connecting.
+- `host/test-device-proxy.ps1`: `Test-SlowRequestLog`;
+  the reply hook logs above-threshold queue or handling times, redacts a token
+  embedded in the serial, skips fast replies and ignores later timing calls.
+
+- `test_device_proxy.py`:
   `test_flash_resets_waits_loads_and_reconnects`;
   the fake host records the required reset/load/reconnect sequence.
 - `test_device_proxy.py`:
@@ -427,6 +466,10 @@ allowed or matched by a load.
   ambiguous images are listed rather than guessed.
 
 ### AR-13 verification
+
+- `test_device_proxy.py`:
+  `test_console_deadline_caps_open_reply_wait`;
+  time spent before open reduces its remaining reply wait.
 
 - `test_device_proxy.py`:
   `test_console_matches_utf8_split_between_socket_reads`;

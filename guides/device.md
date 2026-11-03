@@ -73,6 +73,11 @@ A protected folder with exactly one inheritable user FullControl allow rule
 needs no access-rule update. Setup refuses unexpected entries before mutation;
 the five expected files are device-proxy.ps1, start-device-proxy.ps1,
 device-proxy.json, device-proxy.log and devices.toml. Subdirectories are refused.
+`device-proxy.log` records exceptions and slow requests: a queue or handling time
+of at least three seconds produces one ISO-UTC timestamped line with the command,
+serial when given, accept-to-handler queue time and handler-to-reply time.
+An `open` timing ends at its JSON reply, excluding the serial stream lifetime.
+The slow-request line never includes the workspace token.
 
 Only the firewall operation requests elevation. Setup creates the inbound
 TCP rule `pico-device-proxy-wsl`, on the configured port (default 47600),
@@ -228,8 +233,8 @@ among that board's ports; ambiguity exits 3 rather than guessing.
 Agent mode requires both `--until RE` and a finite positive `--timeout S`.
 It does not forward input. It matches decoded UTF-8 across received chunks in
 the most recent 65,536 characters, returns 0 on a match and 1 on timeout,
-including time waiting for a reconnect. `--log FILE` appends exact received
-bytes in either mode. Invalid options or an unusable log exit 2. Output before
+including time waiting for a reconnect or a proxy reply. `--log FILE` appends
+exact received bytes in either mode. Invalid options or an unusable log exit 2. Output before
 the console attaches is not captured; use `flash --console` and firmware that
 waits for USB connection or reports on request when startup output matters.
 
@@ -300,6 +305,17 @@ it refuses another non-LF byte once that count is reached. LF is not counted.
 Replies have `ok: true` or `ok: false`, `code` and
 `error`. After a successful `open` reply, all following bytes are raw serial
 traffic in both directions until closure.
+
+Connecting has a 10-second timeout and one attempt. Each request waits up to
+30 seconds for its reply, capped by the active BOOTSEL, reconnect or console
+deadline. A probe whose reply times out counts as not ready; polling continues
+while its budget has time and uses its normal timeout message when exhausted.
+Other probe refusals keep their normal behavior. Outside polling, a reply timeout
+exits 1 naming the command and reply wait, such as `the device proxy did not
+reply to list within 30.0s`. Early closure and invalid replies name the command.
+If the deadline expires before connecting or sending, the finding names the
+unsent request without blaming the proxy; polling treats it as not ready.
+The transport does not retry requests.
 
 | cmd | Inputs besides token | Successful reply |
 |---|---|---|

@@ -31,6 +31,8 @@ from .device_errors import CANNOT_TRY, FAILED, GoneError, RefusalError
 
 CONNECTION_FILE = ".pico-device-proxy.json"
 LINE_LIMIT = 65536
+CONNECT_TIMEOUT = 10
+REPLY_WAIT = 30
 REFUSES = {"token", "denied", "path", "request", "absent"}
 
 
@@ -39,6 +41,23 @@ class UnreachableError(RefusalError):
 
     def __init__(self, message):
         super().__init__(CANNOT_TRY, message)
+
+
+class DeadlineExpiredError(RefusalError):
+    """The active deadline expired before sending a request (AR-12, AR-13)."""
+
+    def __init__(self, command):
+        super().__init__(FAILED, f"the time limit ran out before the {command} request")
+
+
+class ReplyTimeoutError(RefusalError):
+    """The request exhausted its reply wait (AR-12, AR-13)."""
+
+    def __init__(self, command, seconds):
+        super().__init__(
+            FAILED,
+            f"the device proxy did not reply to {command} within {seconds:.1f}s",
+        )
 
 
 def find_connection(start):
@@ -73,10 +92,15 @@ def find_connection(start):
     return None
 
 
-def read_line(connection):
+def read_line(connection, *, clock=None, deadline=None):
     """Read one line without taking a byte of the raw stream that may follow it."""
     line = bytearray()
     while not line.endswith(b"\n"):
+        if deadline is not None:
+            left = deadline - clock()
+            if left <= 0:
+                raise TimeoutError
+            connection.settimeout(left)
         byte = connection.recv(1)
         if not byte:
             raise RefusalError(
@@ -110,18 +134,15 @@ class Proxy:
         self.token = data["token"]
         self.deadline = None
 
-    def request(self, **fields):
-        """Send one request; return (reply, connection). A refusal raises."""
-        timeout = 10
+    def _connect(self, command):
+        """Connect once, within the active deadline (AR-15)."""
+        timeout = CONNECT_TIMEOUT
         if self.deadline is not None:
             timeout = min(timeout, self.deadline - self.host.clock())
             if timeout <= 0:
-                raise RefusalError(
-                    FAILED,
-                    "no match: console timeout while waiting for proxy",
-                )
+                raise DeadlineExpiredError(command)
         try:
-            connection = socket.create_connection(self.address, timeout=timeout)
+            return socket.create_connection(self.address, timeout=timeout)
         except OSError as error:
             raise UnreachableError(
                 f"the device proxy is not answering at "
@@ -129,15 +150,33 @@ class Proxy:
                 "run the installed start-device-proxy.ps1 on Windows "
                 "before using device commands",
             ) from error
+
+    def request(self, **fields):
+        """Send one request; return (reply, connection). A refusal raises."""
+        command = fields["cmd"]
+        connection = self._connect(command)
+        wait = REPLY_WAIT
+        if self.deadline is not None:
+            wait = min(wait, max(0, self.deadline - self.host.clock()))
+        reply_deadline = self.host.clock() + wait
+        if wait <= 0:
+            connection.close()
+            raise DeadlineExpiredError(command)
         try:
+            connection.settimeout(wait)
             message = json.dumps({"token": self.token, **fields})
             connection.sendall(message.encode() + b"\n")
-            reply = read_line(connection)
+            reply = read_line(
+                connection, clock=self.host.clock, deadline=reply_deadline,
+            )
+        except TimeoutError as error:
+            connection.close()
+            raise ReplyTimeoutError(command, wait) from error
         except (OSError, ValueError, RefusalError) as error:
             connection.close()
             raise RefusalError(
                 FAILED,
-                f"the device proxy did not reply: {error}",
+                f"the device proxy did not reply to {command}: {error}",
                 code=(
                     "closed"
                     if isinstance(error, ConnectionError)
@@ -146,7 +185,9 @@ class Proxy:
             ) from error
         if not isinstance(reply, dict) or not isinstance(reply.get("ok"), bool):
             connection.close()
-            raise RefusalError(CANNOT_TRY, "the device proxy sent an invalid reply")
+            raise RefusalError(
+                CANNOT_TRY, f"the device proxy sent an invalid reply to {command}",
+            )
         if not reply["ok"]:
             connection.close()
             code = reply.get("code")

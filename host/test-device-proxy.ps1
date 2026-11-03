@@ -31,6 +31,50 @@ function Get-ProxyFunction([string] $Name, [string] $Source = $proxySource) {
     if ($functions.Count -ne 1) { throw "Expected one $Name" }
     return [scriptblock]::Create($functions[0].Extent.Text)
 }
+# AR-12: exercise the production reply/log functions without a device or sleep.
+function Test-SlowRequestLog {
+    . (Get-ProxyFunction "Write-SlowRequest")
+    . (Get-ProxyFunction "Send-Reply")
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $slowRequestSeconds = 3
+    $command = "open"
+    $request = @{ token = "secret-token" }
+    $serial = "TEST-$($request.token)-BOARD"
+    $frequency = [System.Diagnostics.Stopwatch]::Frequency
+    $cases = @(
+        @{ Queued = 0; Handled = 0; Lines = 0 },
+        @{ Queued = 4; Handled = 0; Lines = 1 },
+        @{ Queued = 0; Handled = 4; Lines = 1 },
+        @{ Queued = 4; Handled = 4; Lines = 1 }
+    )
+    foreach ($case in $cases) {
+        $state = @{ LogPath = (Join-Path $root "slow-request-$($case.Queued)-$($case.Handled).log") }
+        [System.IO.File]::WriteAllText($state.LogPath, "", $utf8)
+        $timing = @{ Finished = $false }
+        $started = [System.Diagnostics.Stopwatch]::GetTimestamp() - $case.Handled * $frequency
+        $accepted = $started - $case.Queued * $frequency
+        $stream = New-Object System.IO.MemoryStream
+        try { Send-Reply $stream @{ ok = $true } } finally { $stream.Dispose() }
+        # Inspect immediately: the reply hook itself must produce the timing line.
+        $atReply = [System.IO.File]::ReadAllText($state.LogPath)
+        $lines = @(Get-Content -LiteralPath $state.LogPath)
+        if ($lines.Count -ne $case.Lines) { throw "Reply hook logged $($lines.Count) lines for $case" }
+        if ($case.Lines -eq 1) {
+            if ($lines[0] -notmatch '^\d{4}-\d{2}-\d{2}T\S+Z slow request cmd=open serial=TEST-\[redacted\]-BOARD queued=\d+[.,]\d{3}s handled=\d+[.,]\d{3}s$') {
+                throw "Slow open reply did not log redacted timing: $lines"
+            }
+            if ($lines[0].Contains($request.token)) { throw "Slow request log exposed the token" }
+        }
+        # Model a long stream/cleanup after the reply, including a fast open.
+        $started -= 10 * $frequency
+        Write-SlowRequest
+        if (([System.IO.File]::ReadAllText($state.LogPath)) -cne $atReply) {
+            throw "A later timing call changed the reply log"
+        }
+    }
+}
+Test-SlowRequestLog
+
 function Test-UncPaths {
     . (Get-ProxyFunction "Test-WorkspacePath")
     $unc = '\\wsl.localhost\pico-dev\home\fixture\repo'

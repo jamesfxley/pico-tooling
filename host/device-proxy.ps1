@@ -216,14 +216,42 @@ $written = @()
 # One request per connection, run in its own runspace so that a console held
 # open does not stop a list or a load.
 $handler = {
-    param($client, $state)
+    param($client, $state, $accepted)
+    $started = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    # Three seconds exposes slow enumeration or queueing well before the 30s reply bound.
+    $slowRequestSeconds = 3
+    $timing = @{ Finished = $false }
+    $command = "unknown"
+    $serial = ""
+    $request = $null
     $ErrorActionPreference = "Stop"
     $utf8 = New-Object System.Text.UTF8Encoding($false)
 
+    function Write-SlowRequest {
+        if ($timing.Finished) { return }
+        $timing.Finished = $true
+        $finished = [System.Diagnostics.Stopwatch]::GetTimestamp()
+        $frequency = [double] [System.Diagnostics.Stopwatch]::Frequency
+        $queued = ($started - $accepted) / $frequency
+        $handled = ($finished - $started) / $frequency
+        if ($queued -lt $slowRequestSeconds -and $handled -lt $slowRequestSeconds) { return }
+        $safeCommand = if ($command -in @("list", "allowed", "open", "load")) { $command } else { "unknown" }
+        $safeSerial = $serial -replace '[\r\n]', ' '
+        if ($null -ne $request -and $request.token -is [string] -and $request.token.Length -gt 0) {
+            $safeSerial = $safeSerial.Replace($request.token, "[redacted]")
+        }
+        $line = "{0} slow request cmd={1} serial={2} queued={3:F3}s handled={4:F3}s`r`n" -f (Get-Date).ToUniversalTime().ToString("o"), $safeCommand, $safeSerial, $queued, $handled
+        [System.Threading.Monitor]::Enter($state.SyncRoot)
+        try { [System.IO.File]::AppendAllText($state.LogPath, $line, $utf8) }
+        finally { [System.Threading.Monitor]::Exit($state.SyncRoot) }
+    }
+
     function Send-Reply($stream, $reply) {
         $bytes = $utf8.GetBytes(($reply | ConvertTo-Json -Compress -Depth 6) + "`n")
-        $stream.Write($bytes, 0, $bytes.Length)
-        $stream.Flush()
+        try {
+            $stream.Write($bytes, 0, $bytes.Length)
+            $stream.Flush()
+        } finally { Write-SlowRequest }
     }
 
     function Send-Refusal($stream, [string] $code, [string] $text) {
@@ -272,13 +300,13 @@ $handler = {
         if ($null -eq $line) { return }
         try { $request = $line | ConvertFrom-Json } catch { $request = $null }
         if ($null -eq $request) { Send-Refusal $stream "request" "the request is not JSON"; return }
+        $command = [string] $request.cmd
+        $serial = [string] $request.serial
         $root = $null
         if ($request.token -is [string] -and $state.Tokens.ContainsKey($request.token)) {
             $root = $state.Tokens[$request.token]
         }
         if ($null -eq $root) { Send-Refusal $stream "token" "bad token"; return }
-        $command = [string] $request.cmd
-        $serial = [string] $request.serial
 
         if ($command -eq "list") {
             Send-Reply $stream @{ ok = $true; boards = @(Get-Boards) }
@@ -370,9 +398,12 @@ $handler = {
             $serialPort.Close()
         }
     } catch {
-        [System.IO.File]::AppendAllText($state.LogPath, "request failed: $($_.Exception.Message)`r`n")
+        [System.Threading.Monitor]::Enter($state.SyncRoot)
+        try { [System.IO.File]::AppendAllText($state.LogPath, "request failed: $($_.Exception.Message)`r`n") }
+        finally { [System.Threading.Monitor]::Exit($state.SyncRoot) }
     } finally {
         $client.Close()
+        Write-SlowRequest
     }
 }.ToString()
 
@@ -403,9 +434,10 @@ try {
         }
         if ($listener.Pending()) {
             $client = $listener.AcceptTcpClient()
+            $accepted = [System.Diagnostics.Stopwatch]::GetTimestamp()
             $shell = [powershell]::Create()
             $shell.RunspacePool = $pool
-            [void] $shell.AddScript($handler).AddArgument($client).AddArgument($state)
+            [void] $shell.AddScript($handler).AddArgument($client).AddArgument($state).AddArgument($accepted)
             [void] $running.Add(@{ Shell = $shell; Result = $shell.BeginInvoke() })
         } else { Start-Sleep -Milliseconds 100 }
         foreach ($job in @($running | Where-Object { $_.Result.IsCompleted })) {

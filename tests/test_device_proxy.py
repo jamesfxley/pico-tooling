@@ -14,7 +14,7 @@ from pathlib import Path
 
 import pytest
 
-from pico_tooling import device
+from pico_tooling import device, device_proxy
 from pico_tooling.__main__ import parser
 from pico_tooling.device_errors import CANNOT_TRY, RefusalError
 from pico_tooling.device_proxy import CONNECTION_FILE, Proxy, find_connection
@@ -35,6 +35,7 @@ class FakeProxy(socketserver.ThreadingTCPServer):
         self.stage = "application"
         self.reset = True
         self.reset_error = None
+        self.reset_complete = threading.Event()
         self.reconnect = True
         self.fail_load = False
         self.chunks = [b"boot: ", b"ready\n"]
@@ -73,10 +74,11 @@ class Handler(socketserver.BaseRequestHandler):
         if request.get("token") != peer.token:
             self.reply(ok=False, code="token", error="bad token")
             return
-        if peer.protocol_error:
+        if peer.protocol_error is not None:
             connection.sendall(peer.protocol_error)
             return
-        self.dispatch(request)
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+            self.dispatch(request)
 
     def dispatch(self, request):
         peer = self.server
@@ -117,12 +119,14 @@ class Handler(socketserver.BaseRequestHandler):
                 peer.stage = "bootloader"
             if peer.reset_error != "closed":
                 self.reply(ok=False, code=peer.reset_error, error="reset open refused")
+            peer.reset_complete.set()
             return
         self.reply(ok=True)
         while self.request.recv(1024):
             pass
         if peer.reset:
             peer.stage = "bootloader"
+        peer.reset_complete.set()
 
     def open_stream(self, request):
         peer = self.server
@@ -649,3 +653,191 @@ def test_proxy_discovery_cannot_escape_the_test_directory(tmp_path, relative):
         assert find_connection(start) is None, "discovery escaped to the ancestor decoy"
     finally:
         decoy.unlink()
+
+
+class ReplyClock:
+    """Control request time while FakeProxy supplies protocol replies."""
+
+    def __init__(self, peer):
+        self.now = 0.0
+        self.fields = {}
+        self.reset_pending = False
+        self.waits = []
+        self.before = lambda _fields: None
+        self.delay = lambda _fields, _reply: 0
+        self.host = dataclasses.replace(
+            host_of(peer), clock=lambda: self.now, sleep=self.sleep,
+        )
+
+    def sleep(self, seconds):
+        self.now += seconds
+
+
+@pytest.fixture
+def reply_clock(proxy, monkeypatch):
+    state = ReplyClock(proxy)
+    original_request = Proxy.request
+    original_read = device_proxy.read_line
+
+    def request(backend, **fields):
+        if state.reset_pending and fields["cmd"] == "list":
+            # Wait for the peer's reset close, independently of the modeled budget.
+            assert proxy.reset_complete.wait(1), "fake peer did not handle reset close"
+            state.reset_pending = False
+        state.fields = fields
+        state.before(fields)
+        answer = original_request(backend, **fields)
+        if fields["cmd"] == "open" and fields["baud"] == 1200:
+            state.reset_pending = True
+        return answer
+
+    def read(connection, *, clock, deadline):
+        wait = deadline - clock()
+        reply = original_read(connection, clock=clock, deadline=deadline)
+        state.waits.append((state.fields["cmd"], wait))
+        delay = state.delay(state.fields, reply)
+        state.now += min(delay, wait)
+        if delay >= wait:
+            raise TimeoutError
+        return reply
+
+    monkeypatch.setattr(Proxy, "request", request)
+    monkeypatch.setattr(device_proxy, "read_line", read)
+    return state
+
+
+def test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout(proxy, reply_clock):
+    """AR-12: a 12s modeled list reply succeeds within its 30s reply wait."""
+    reply_clock.delay = lambda fields, _reply: 12 if fields["cmd"] == "list" else 0
+    status, host = invoke(proxy, "list", host=reply_clock.host)
+    assert status == 0, host.err.getvalue()
+    assert SERIAL in host.out.getvalue()
+    assert reply_clock.waits == [("list", 30), ("list", 30)]
+
+
+def test_reply_timeout_outside_poll_names_request_and_wait(proxy, reply_clock):
+    """AR-12: a request outside a polling budget fails once with its wait."""
+    reply_clock.delay = lambda _fields, _reply: 31
+    status, host = invoke(proxy, "list", host=reply_clock.host)
+    assert status == 1
+    assert host.err.getvalue() == (
+        "error: the device proxy did not reply to list within 30.0s\n"
+    )
+    assert [request["cmd"] for request in proxy.requests] == ["list"]
+    assert proxy.token not in host.err.getvalue() + host.out.getvalue()
+
+
+def test_bootsel_probe_reply_timeout_retries_and_flash_completes(
+    proxy, reply_clock, monkeypatch,
+):
+    """AR-12: a probe timeout does not consume the whole BOOTSEL budget."""
+    monkeypatch.setattr(device_proxy, "REPLY_WAIT", 2)
+    reset = []
+    delayed = []
+
+    def delay(fields, _reply):
+        if fields["cmd"] == "open" and fields["baud"] == 1200:
+            reset.append(True)
+        if fields["cmd"] == "list" and reset and not delayed:
+            delayed.append(True)
+            return 3
+        return 0
+
+    reply_clock.delay = delay
+    status, host = flash(proxy, host=reply_clock.host)
+    assert status == 0, host.err.getvalue()
+    assert delayed == [True]
+    assert any(request["cmd"] == "load" for request in proxy.requests)
+
+
+def test_bootsel_probe_reply_wait_is_capped_by_loop_budget(
+    proxy, reply_clock, monkeypatch,
+):
+    """AR-12: an exhausted probe budget uses the existing BOOTSEL finding."""
+    monkeypatch.setattr(device, "BOOT_WAIT", 20)
+    reset = []
+
+    def delay(fields, _reply):
+        if fields["cmd"] == "open" and fields["baud"] == 1200:
+            reset.append(True)
+        return 31 if fields["cmd"] == "list" and reset else 0
+
+    reply_clock.delay = delay
+    status, host = flash(proxy, host=reply_clock.host)
+    assert status == 1
+    assert "did not appear in BOOTSEL within 20s" in host.err.getvalue()
+    assert reply_clock.waits[-1] == ("list", 20)
+    assert not any(request["cmd"] == "load" for request in proxy.requests)
+
+
+def test_console_deadline_caps_open_reply_wait(proxy, reply_clock):
+    """AR-13: time spent before open reduces its remaining reply wait."""
+    def before(fields):
+        if fields["cmd"] == "open":
+            reply_clock.now += 6
+
+    reply_clock.before = before
+    reply_clock.delay = lambda fields, _reply: 31 if fields["cmd"] == "open" else 0
+    status, host = invoke(
+        proxy, "console", "--serial", SERIAL, "--until", "ready", "--timeout", "20",
+        host=reply_clock.host,
+    )
+    assert status == 1
+    assert reply_clock.waits[-1] == ("open", 14)
+    assert "the device proxy did not reply to open within 14.0s" in host.err.getvalue()
+
+
+@pytest.mark.parametrize("reply", [b"not json\n", b"[]\n", b'{"ok":42}\n', b""])
+def test_invalid_or_closed_reply_names_request(proxy, reply):
+    """AR-12: reply failures identify the command without exposing the token."""
+    proxy.protocol_error = reply
+    status, host = invoke(proxy, "list")
+    assert status in {1, 2}
+    assert "list" in host.err.getvalue()
+    assert proxy.token not in host.err.getvalue() + host.out.getvalue()
+
+
+@pytest.mark.parametrize(
+    ("initial_time", "attempts_expected"), [(2, 0), (1, 0), (0, 1)],
+)
+def test_expired_deadline_before_send_does_not_blame_proxy(
+    proxy, monkeypatch, initial_time, attempts_expected,
+):
+    """AR-12: an unsent request reports deadline exhaustion, not a reply failure."""
+    now = [initial_time]
+    attempts = []
+    host = dataclasses.replace(host_of(proxy), clock=lambda: now[0])
+    backend = Proxy(host, proxy.root / CONNECTION_FILE, {
+        "host": "127.0.0.1", "port": 47600, "token": proxy.token,
+    })
+    backend.deadline = 1
+    with socket.socket() as connection:
+        def connect(address, *, timeout):
+            attempts.append((address, timeout))
+            now[0] = 2
+            return connection
+
+        monkeypatch.setattr(socket, "create_connection", connect)
+        with pytest.raises(RefusalError) as caught:
+            backend.list()
+    assert caught.value.status == 1
+    assert str(caught.value) == "the time limit ran out before the list request"
+    assert len(attempts) == attempts_expected
+
+
+def test_poll_treats_deadline_exhausted_before_request_as_not_ready(proxy, monkeypatch):
+    """AR-12: an unsent probe exhausting the deadline keeps the polling result."""
+    now = [0]
+    host = dataclasses.replace(host_of(proxy), clock=lambda: now[0])
+    backend = device.choose(host)
+
+    def unexpected_connect(*_args, **_kwargs):
+        pytest.fail("an exhausted deadline attempted to connect")
+
+    def probe():
+        now[0] = 2
+        return backend.list()
+
+    monkeypatch.setattr(socket, "create_connection", unexpected_connect)
+    assert device.wait_for(host, 1, probe, backend) is None
+    assert backend.deadline is None
