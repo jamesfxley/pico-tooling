@@ -160,7 +160,9 @@ A probe reply timeout counts as not ready; polling continues within its remainin
 budget and ends with the existing BOOTSEL, reconnect or console timeout finding.
 Other probe refusals retain their statuses. Outside polling, a reply timeout
 exits 1 naming the request and its reply wait; early closure and invalid replies
-also name the request. Requests are not retried by the transport.
+also name the request. An expired deadline before connecting or sending exits 1
+naming the unsent request, without claiming a reply failure; polling treats it as
+not ready. Requests are not retried by the transport.
 The host logs requests with queue or handling time of at least three seconds in
 `device-proxy.log`, once at reply send, using an ISO-UTC timestamp, command,
 serial when given, accept-to-handler time and handler-to-reply time. For `open`
@@ -426,7 +428,7 @@ allowed or matched by a load.
 
 - `test_device_proxy.py`:
   `test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout`;
-  a scaled slow list reply succeeds beyond the connect bound.
+  a modeled 12-second list reply succeeds beyond the connect bound.
 - `test_device_proxy.py`:
   `test_reply_timeout_outside_poll_names_request_and_wait`;
   a reply timeout exits 1 naming the request and wait without retrying.
@@ -439,8 +441,15 @@ allowed or matched by a load.
 - `test_device_proxy.py`:
   `test_invalid_or_closed_reply_names_request`;
   invalid and closed reply findings name the request without its token.
+- `test_device_proxy.py`:
+  `test_expired_deadline_before_send_does_not_blame_proxy`;
+  expiry before connecting or sending names the unsent request with status 1.
+- `test_device_proxy.py`:
+  `test_poll_treats_deadline_exhausted_before_request_as_not_ready`;
+  polling catches pre-request deadline exhaustion without connecting.
 - `host/test-device-proxy.ps1`: `Test-SlowRequestLog`;
-  slow replies log one timing line without the token; fast replies do not log.
+  the reply hook logs above-threshold queue or handling times, redacts a token
+  embedded in the serial, skips fast replies and ignores later timing calls.
 
 - `test_device_proxy.py`:
   `test_flash_resets_waits_loads_and_reconnects`;
@@ -459,7 +468,7 @@ allowed or matched by a load.
 
 - `test_device_proxy.py`:
   `test_console_deadline_caps_open_reply_wait`;
-  the console deadline caps the open reply wait.
+  time spent before open reduces its remaining reply wait.
 
 - `test_device_proxy.py`:
   `test_console_matches_utf8_split_between_socket_reads`;

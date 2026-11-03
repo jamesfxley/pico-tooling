@@ -43,6 +43,13 @@ class UnreachableError(RefusalError):
         super().__init__(CANNOT_TRY, message)
 
 
+class DeadlineExpiredError(RefusalError):
+    """The active deadline expired before sending a request (AR-12, AR-13)."""
+
+    def __init__(self, command):
+        super().__init__(FAILED, f"the time limit ran out before the {command} request")
+
+
 class ReplyTimeoutError(RefusalError):
     """The request exhausted its reply wait (AR-12, AR-13)."""
 
@@ -133,7 +140,7 @@ class Proxy:
         if self.deadline is not None:
             timeout = min(timeout, self.deadline - self.host.clock())
             if timeout <= 0:
-                raise ReplyTimeoutError(command, 0)
+                raise DeadlineExpiredError(command)
         try:
             return socket.create_connection(self.address, timeout=timeout)
         except OSError as error:
@@ -154,7 +161,7 @@ class Proxy:
         reply_deadline = self.host.clock() + wait
         if wait <= 0:
             connection.close()
-            raise ReplyTimeoutError(command, wait)
+            raise DeadlineExpiredError(command)
         try:
             connection.settimeout(wait)
             message = json.dumps({"token": self.token, **fields})

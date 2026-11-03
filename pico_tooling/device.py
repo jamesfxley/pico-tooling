@@ -36,7 +36,12 @@ from .device_errors import (
     RefusalError,
 )
 from .device_images import check_credentials, resolve_uf2
-from .device_proxy import Proxy, ReplyTimeoutError, find_connection
+from .device_proxy import (
+    DeadlineExpiredError,
+    Proxy,
+    ReplyTimeoutError,
+    find_connection,
+)
 
 TOUCH_BAUD = 1200  # PICO_USB_RESET_MAGIC_BAUD_RATE
 CONSOLE_BAUD = 115200
@@ -171,7 +176,7 @@ def wait_for(host, seconds, probe, backend):
         while host.clock() < backend.deadline:
             try:
                 answer = probe()
-            except ReplyTimeoutError:
+            except (DeadlineExpiredError, ReplyTimeoutError):
                 answer = None
             if answer:
                 return answer

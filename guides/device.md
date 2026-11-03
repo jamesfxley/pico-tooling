@@ -313,6 +313,8 @@ while its budget has time and uses its normal timeout message when exhausted.
 Other probe refusals keep their normal behavior. Outside polling, a reply timeout
 exits 1 naming the command and reply wait, such as `the device proxy did not
 reply to list within 30.0s`. Early closure and invalid replies name the command.
+If the deadline expires before connecting or sending, the finding names the
+unsent request without blaming the proxy; polling treats it as not ready.
 The transport does not retry requests.
 
 | cmd | Inputs besides token | Successful reply |
