@@ -23,6 +23,15 @@ unreadable release tags are CANNOT_RUN, because evidence is unavailable. Footpri
 library's declared budgets after firmware builds. Neither plain CMake nor House
 performs product dependency selection policing.
 
+A library takes a new infra patch release with its next change, when it needs a
+fix the release carries, or when it moves a product pin to a revision whose infra
+pin is newer than its own; `cmake/pico_family.cmake` refuses a build whose infra
+is older than a dependency's pin. A release is taken at once only where it fixes
+a gate defect that fails that library's CI, or a security defect. While the major
+version is 0, a build refuses infra pins of different minor versions, so a minor
+release is taken by every library, dependencies before their consumers. An open
+pull request takes a new `main` only to merge.
+
 See [installed SDK links](usage-guide.md#installed-sdk-links) for exporting
 SDK-linked targets and restoring their links in installed consumers.
 
