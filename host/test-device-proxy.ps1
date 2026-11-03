@@ -31,6 +31,37 @@ function Get-ProxyFunction([string] $Name, [string] $Source = $proxySource) {
     if ($functions.Count -ne 1) { throw "Expected one $Name" }
     return [scriptblock]::Create($functions[0].Extent.Text)
 }
+# AR-12: exercise the production reply/log functions without a device or sleep.
+function Test-SlowRequestLog {
+    . (Get-ProxyFunction "Write-SlowRequest")
+    . (Get-ProxyFunction "Send-Reply")
+    $utf8 = New-Object System.Text.UTF8Encoding($false)
+    $state = @{ LogPath = (Join-Path $root "slow-request.log") }
+    $timing = @{ Finished = $false }
+    $slowRequestSeconds = 3
+    $command = "open"
+    $serial = "TEST-BOARD"
+    $request = @{ token = "secret-token" }
+    $frequency = [System.Diagnostics.Stopwatch]::Frequency
+    $started = [System.Diagnostics.Stopwatch]::GetTimestamp() - 4 * $frequency
+    $accepted = $started - 5 * $frequency
+    $stream = New-Object System.IO.MemoryStream
+    try { Send-Reply $stream @{ ok = $true } } finally { $stream.Dispose() }
+    Write-SlowRequest
+    $lines = @(Get-Content -LiteralPath $state.LogPath)
+    if ($lines.Count -ne 1 -or $lines[0] -notmatch '^\d{4}-\d{2}-\d{2}T\S+Z slow request cmd=open serial=TEST-BOARD queued=\d+[.,]\d{3}s handled=\d+[.,]\d{3}s$') {
+        throw "Slow open reply did not log timing once: $lines"
+    }
+    if ($lines[0].Contains($request.token)) { throw "Slow request log exposed the token" }
+    $started = [System.Diagnostics.Stopwatch]::GetTimestamp()
+    $accepted = $started
+    $timing.Finished = $false
+    $stream = New-Object System.IO.MemoryStream
+    try { Send-Reply $stream @{ ok = $true } } finally { $stream.Dispose() }
+    if (@(Get-Content -LiteralPath $state.LogPath).Count -ne 1) { throw "Fast request logged as slow" }
+}
+Test-SlowRequestLog
+
 function Test-UncPaths {
     . (Get-ProxyFunction "Test-WorkspacePath")
     $unc = '\\wsl.localhost\pico-dev\home\fixture\repo'

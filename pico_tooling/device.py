@@ -36,7 +36,7 @@ from .device_errors import (
     RefusalError,
 )
 from .device_images import check_credentials, resolve_uf2
-from .device_proxy import Proxy, find_connection
+from .device_proxy import Proxy, ReplyTimeoutError, find_connection
 
 TOUCH_BAUD = 1200  # PICO_USB_RESET_MAGIC_BAUD_RATE
 CONSOLE_BAUD = 115200
@@ -162,15 +162,23 @@ def pick_port(serial, ports, wanted):
     return ports[0] if ports else None
 
 
-def wait_for(host, seconds, probe):
-    """Poll `probe` once a second; return its first truthy answer or None."""
+def wait_for(host, seconds, probe, backend):
+    """Poll within the budget, treating a proxy reply timeout as not yet ready."""
     end = host.clock() + seconds
-    while host.clock() < end:
-        answer = probe()
-        if answer:
-            return answer
-        host.sleep(min(1, max(0, end - host.clock())))
-    return None
+    previous = backend.deadline
+    backend.deadline = end if previous is None else min(end, previous)
+    try:
+        while host.clock() < backend.deadline:
+            try:
+                answer = probe()
+            except ReplyTimeoutError:
+                answer = None
+            if answer:
+                return answer
+            host.sleep(min(1, max(0, backend.deadline - host.clock())))
+        return None
+    finally:
+        backend.deadline = previous
 
 
 # -- list ----------------------------------------------------------------------
@@ -221,7 +229,7 @@ def reset_into_bootsel(host, backend, serial, wanted):
         if error.code not in {"failed", "absent", "closed"}:
             raise
         vanished = error
-    if not wait_for(host, BOOT_WAIT, lambda: in_bootloader(backend, serial)):
+    if not wait_for(host, BOOT_WAIT, lambda: in_bootloader(backend, serial), backend):
         raise RefusalError(
             CANNOT_TRY if vanished else FAILED,
             (f"{vanished}\n" if vanished else "")
@@ -302,7 +310,7 @@ def flash(host, backend, args, uf2):
         reset_into_bootsel(host, backend, serial, args.port)
     host.say(f"==> Loading {uf2} through the host proxy...")
     backend.load(serial, uf2)
-    if not wait_for(host, REBOOT_WAIT, lambda: board_ports(backend, serial)):
+    if not wait_for(host, REBOOT_WAIT, lambda: board_ports(backend, serial), backend):
         raise RefusalError(
             FAILED,
             f"{serial} did not reconnect within {REBOOT_WAIT}s after the load",
@@ -453,6 +461,7 @@ def console(host, backend, args, forward=None, started=False):
                     board_ports(backend, args.serial),
                     args.port,
                 ),
+                backend,
             )
             if port is None:
                 return timed_out(host, args)

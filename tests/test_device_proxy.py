@@ -10,11 +10,12 @@ import secrets
 import socket
 import socketserver
 import threading
+import time
 from pathlib import Path
 
 import pytest
 
-from pico_tooling import device
+from pico_tooling import device, device_proxy
 from pico_tooling.__main__ import parser
 from pico_tooling.device_errors import CANNOT_TRY, RefusalError
 from pico_tooling.device_proxy import CONNECTION_FILE, Proxy, find_connection
@@ -42,6 +43,7 @@ class FakeProxy(socketserver.ThreadingTCPServer):
         self.typed = []
         self.protocol_error = None
         self.disconnect = False
+        self.reply_delay = lambda _request: 0
 
     def boards(self):
         if self.stage == "absent":
@@ -73,10 +75,12 @@ class Handler(socketserver.BaseRequestHandler):
         if request.get("token") != peer.token:
             self.reply(ok=False, code="token", error="bad token")
             return
-        if peer.protocol_error:
+        if peer.protocol_error is not None:
             connection.sendall(peer.protocol_error)
             return
-        self.dispatch(request)
+        time.sleep(peer.reply_delay(request))
+        with contextlib.suppress(BrokenPipeError, ConnectionResetError):
+            self.dispatch(request)
 
     def dispatch(self, request):
         peer = self.server
@@ -649,3 +653,85 @@ def test_proxy_discovery_cannot_escape_the_test_directory(tmp_path, relative):
         assert find_connection(start) is None, "discovery escaped to the ancestor decoy"
     finally:
         decoy.unlink()
+
+
+def test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout(proxy, monkeypatch):
+    """AR-12: a reply beyond the scaled connect bound still succeeds."""
+    monkeypatch.setattr(device_proxy, "CONNECT_TIMEOUT", 0.1)
+    monkeypatch.setattr(device_proxy, "REPLY_WAIT", 0.8)
+    proxy.reply_delay = lambda request: 0.2 if request["cmd"] == "list" else 0
+    status, host = invoke(proxy, "list")
+    assert status == 0, host.err.getvalue()
+    assert SERIAL in host.out.getvalue()
+
+
+def test_reply_timeout_outside_poll_names_request_and_wait(proxy, monkeypatch):
+    """AR-12: a request outside a polling budget fails once with its wait."""
+    monkeypatch.setattr(device_proxy, "REPLY_WAIT", 0.1)
+    proxy.reply_delay = lambda _request: 0.3
+    status, host = invoke(proxy, "list")
+    assert status == 1
+    assert host.err.getvalue() == (
+        "error: the device proxy did not reply to list within 0.1s\n"
+    )
+    assert [request["cmd"] for request in proxy.requests] == ["list"]
+    assert proxy.token not in host.err.getvalue() + host.out.getvalue()
+
+
+def test_bootsel_probe_reply_timeout_retries_and_flash_completes(proxy, monkeypatch):
+    """AR-12: a probe timeout does not consume the whole BOOTSEL budget."""
+    monkeypatch.setattr(device_proxy, "REPLY_WAIT", 0.1)
+    monkeypatch.setattr(device, "BOOT_WAIT", 3)
+    delayed = []
+
+    def delay(request):
+        if request["cmd"] == "list" and proxy.stage == "bootloader" and not delayed:
+            delayed.append(request)
+            return 0.3
+        return 0
+
+    proxy.reply_delay = delay
+    status, host = flash(proxy)
+    assert status == 0, host.err.getvalue()
+    assert len(delayed) == 1
+    assert any(request["cmd"] == "load" for request in proxy.requests)
+
+
+def test_bootsel_probe_reply_wait_is_capped_by_loop_budget(proxy, monkeypatch):
+    """AR-12: an exhausted probe budget uses the existing BOOTSEL finding."""
+    monkeypatch.setattr(device, "BOOT_WAIT", 0.2)
+    proxy.reply_delay = lambda request: (
+        0.5 if request["cmd"] == "list" and proxy.stage == "bootloader" else 0
+    )
+    started = time.monotonic()
+    status, host = flash(proxy)
+    elapsed = time.monotonic() - started
+    assert status == 1
+    assert "did not appear in BOOTSEL within 0.2s" in host.err.getvalue()
+    assert elapsed < 0.65
+    assert not any(request["cmd"] == "load" for request in proxy.requests)
+
+
+def test_console_deadline_caps_open_reply_wait(proxy):
+    """AR-13: waiting for open's reply counts toward the console deadline."""
+    proxy.reply_delay = lambda request: (
+        0.5 if request["cmd"] == "open" else 0
+    )
+    started = time.monotonic()
+    status, host = invoke(
+        proxy, "console", "--serial", SERIAL, "--until", "ready", "--timeout", "0.2",
+    )
+    elapsed = time.monotonic() - started
+    assert status == 1
+    assert "the device proxy did not reply to open within 0.2s" in host.err.getvalue()
+    assert elapsed < 0.45
+
+
+@pytest.mark.parametrize("reply", [b"not json\n", b"[]\n", b'{"ok":42}\n', b""])
+def test_invalid_or_closed_reply_names_request(proxy, reply):
+    """AR-12: reply failures identify the command without exposing the token."""
+    proxy.protocol_error = reply
+    status, host = invoke(proxy, "list")
+    assert status in {1, 2}
+    assert "list" in host.err.getvalue()
+    assert proxy.token not in host.err.getvalue() + host.out.getvalue()
