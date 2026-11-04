@@ -1,6 +1,6 @@
 #!/bin/sh
 # SPDX-License-Identifier: MIT
-# AR-15: runs as root inside the distro, from setup-dev-distro.ps1.
+# This runs as root inside the distro, from setup-dev-distro.ps1 (AR-15).
 #   setup <user> <docker-version>: packages, Docker Engine, user, wsl.conf
 #   verify: print the distro service/configuration diagnostics
 set -eu
@@ -13,7 +13,7 @@ setup)
     apt-get update
     apt-get install -y --no-install-recommends \
         ca-certificates curl dbus git iproute2 systemd systemd-sysv wget
-    # Docker's documented apt repository (docs.docker.com/engine/install/ubuntu).
+    # Docker documents this apt repository at docs.docker.com/engine/install/ubuntu.
     install -m 0755 -d /etc/apt/keyrings
     curl -fsSL https://download.docker.com/linux/ubuntu/gpg -o /etc/apt/keyrings/docker.asc
     chmod a+r /etc/apt/keyrings/docker.asc

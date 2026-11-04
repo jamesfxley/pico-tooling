@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-# Windows PowerShell 5.1 device transport (AR-15). The installed copy enforces
+# The transport runs in Windows PowerShell 5.1 (AR-15). Its installed copy enforces
 # host allow-list and workspace-relative load paths; sequencing stays in Python.
 # -ListenAddress is one IPv4 address, defaulting to loopback for no-device CI.
 # -Distro enables the container watch: wait five minutes for the first matching
 # dev container, then stop when none is running. Connection files carry host,
 # port and token, and are removed on exit. -ContainerQuery is the injected query
-# seam for the no-WSL lifecycle test; the launcher uses the real docker query.
+# for the lifecycle test without WSL; the launcher uses the real docker query.
 # -List enumerates once without a listener, serial open, copy or token write.
-# device-proxy.json holds port/workspaces; devices.toml is the host allow-list.
+# device-proxy.json holds the port and workspaces; devices.toml is the allow-list.
 # Exit status: 0 listed/stopped; 2 unable to list/start/watch.
 
 param(
@@ -144,7 +144,7 @@ if ($List) {
     }
 }
 
-# A wildcard would expose more interfaces than the selected address.
+# A wildcard exposes interfaces beyond the selected address.
 $listenIp = $null
 if (-not [System.Net.IPAddress]::TryParse($ListenAddress, [ref] $listenIp) -or
     $listenIp.AddressFamily -ne [System.Net.Sockets.AddressFamily]::InterNetwork -or
@@ -175,7 +175,6 @@ if ($Distro -and $null -eq $ContainerQuery) {
     }
 }
 
-# Pre-flight: the configuration, the workspaces, the port.
 $configPath = Join-Path $ConfigDirectory "device-proxy.json"
 if (-not (Test-Path -LiteralPath $configPath -PathType Leaf)) {
     Stop-Run "$configPath not found; run setup-device-proxy.ps1 first"
@@ -348,7 +347,6 @@ $handler = {
             return
         }
 
-        # open: the serial port of this board, at the given baud rate.
         $found = @(Get-Boards | Where-Object { -not $_.bootloader -and $_.serial -ceq $serial })
         $board = if ($found.Count -eq 1) { $found[0] } else { $null }
         $name = [string] $request.port

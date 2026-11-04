@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# AR-15: native no-device acceptance; no WSL distro or firewall elevation.
+# Native acceptance needs no device, WSL distro or firewall elevation (AR-15).
 $ErrorActionPreference = "Stop"
 if ($PSVersionTable.PSEdition -ne "Desktop" -or $PSVersionTable.PSVersion.Major -ne 5) { throw "Run with Windows PowerShell 5.1" }
 $root = Join-Path ([System.IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString())
@@ -17,8 +17,7 @@ $tokenFile = Join-Path $workspace ".pico-device-proxy.json"
 $shortcut = Join-Path $startup "pico-device-proxy.lnk"
 $process = $null
 
-# Parse all entry points with the actual PS 5.1 parser, then exercise the exact
-# production functions rather than maintaining another path/lifetime model.
+# Parse entry points with PowerShell 5.1 and exercise the production functions.
 foreach ($file in (Get-ChildItem -LiteralPath $PSScriptRoot -Filter "*.ps1")) {
     $parseTokens = $null; $parseErrors = $null
     [void] [System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref] $parseTokens, [ref] $parseErrors)
@@ -31,7 +30,7 @@ function Get-ProxyFunction([string] $Name, [string] $Source = $proxySource) {
     if ($functions.Count -ne 1) { throw "Expected one $Name" }
     return [scriptblock]::Create($functions[0].Extent.Text)
 }
-# AR-12: exercise the production reply/log functions without a device or sleep.
+# Exercise production reply/log functions without a device or sleep (AR-12).
 function Test-SlowRequestLog {
     . (Get-ProxyFunction "Write-SlowRequest")
     . (Get-ProxyFunction "Send-Reply")
@@ -99,7 +98,7 @@ try {
 } catch { if ($_.Exception.Message -cne "query fixture failure") { throw } }
 
 
-# AR-15: both entry points validate the production predicate without a firewall.
+# Both entry points validate the production predicate without a firewall (AR-15).
 function Test-FirewallScope([string] $Source) {
     . (Get-ProxyFunction "Test-ProxyFirewall" $Source)
     $fixture = @{
