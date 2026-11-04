@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Gate: the generated CMake bootstrap match the pinned generator (AR-2)."""
+"""The gate checks that the CMake bootstrap matches the generator (AR-2)."""
 
 from house.api import Finding, Result
 

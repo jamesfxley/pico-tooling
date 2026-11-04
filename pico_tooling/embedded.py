@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""What the footprint and symbols gates share: binutils, owned files, freshness.
+"""The embedded gates share binutils, owned paths and freshness checks.
 
 A gate that cannot read its artefact raises UnavailableError; the gate reports
 it as CANNOT_RUN, never as a pass (AR-11).
@@ -77,7 +77,7 @@ def modified(path):
 
 
 def newest_source(owned):
-    """Return the newest modification time among the owned built-from sources."""
+    """Return the newest modification time among owned build inputs."""
     return max(
         (modified(path) for path in owned if path.suffix in BUILT_FROM
          and path.is_file()),
@@ -86,7 +86,7 @@ def newest_source(owned):
 
 
 def require_fresh(artefact, owned):
-    """Refuse an artefact older than an owned source, which its build did not see."""
+    """Reject an artefact older than an owned source."""
     newest = newest_source(owned)
     if modified(artefact) < newest:
         raise UnavailableError(

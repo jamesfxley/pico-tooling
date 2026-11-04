@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""The proxy client: a program on the host that owns the boards (AR-15).
+"""The client connects to the Windows host device proxy (AR-15).
 
 The host program listens on its configured IPv4 address and writes a connection
 file, `.pico-device-proxy.json`, at the root of each workspace it serves. The
@@ -93,7 +93,7 @@ def find_connection(start):
 
 
 def read_line(connection, *, clock=None, deadline=None):
-    """Read one line without taking a byte of the raw stream that may follow it."""
+    """Read one line without taking a byte of the raw stream that might follow it."""
     line = bytearray()
     while not line.endswith(b"\n"):
         if deadline is not None:

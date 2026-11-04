@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Gate: an image or the library's objects reach no forbidden symbol (AR-11).
+"""The gate checks images and library objects for forbidden symbols (AR-11).
 
 Each [[symbols]] table in pico.toml names one directory of objects or one
 image, and the sets to check:
@@ -10,14 +10,14 @@ image, and the sets to check:
 
 An object is the library's when the compile database above its directory
 records it as compiled from a source git tracks or does not ignore, so an SDK
-source compiled into a target is not. A set asked in the mode that cannot see it
-is refused when pico.toml is read: it would pass whatever the answer. A missing
-input, a stale build and an unreadable database are CANNOT_RUN.
+source compiled into a target is not. A set used in a mode that cannot see it
+is rejected when pico.toml is read: its result in that mode would not show
+what the set guards against.
+Missing inputs, stale builds and unreadable databases are CANNOT_RUN.
 
-A table with expect = "refused" is a negative control. It names a fixture the
-gate must refuse, and passes only when one of its own sets finds a symbol there;
-a fixture that is clean, or refused only by another set, fails, because a
-declaration that points at the wrong build output would otherwise pass for ever.
+A table with expect = "refused" names a fixture the gate must refuse.
+The control passes only when one of its own sets finds a symbol. A clean
+fixture, or one rejected only by another set, fails the control.
 """
 
 import json

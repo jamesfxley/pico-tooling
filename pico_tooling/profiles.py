@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""The family firmware tree (AR-2).
+"""The firmware tree uses the family profile (AR-2).
 
 The family reference imports the firmware attribute directly from its pin. House
 reads a profile's name, enabled flag, CMake arguments and environment.

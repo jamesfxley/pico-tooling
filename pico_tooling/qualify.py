@@ -14,7 +14,7 @@ differs from what the checkout requires (the report names it), 2 when the
 evidence could not be gathered: not inside the image, an unreadable input, or no
 image identity. A mismatch outranks missing evidence.
 
-The standard library only; the image's own tools do the work.
+The module uses only the standard library and the image's tools.
 """
 
 import argparse
@@ -146,7 +146,7 @@ class Check:
 
 
 class System:
-    """The facts the qualification reads; tests replace it with fakes."""
+    """Tests replace these system inputs with fakes."""
 
     python = sys.version_info
 
@@ -206,7 +206,7 @@ def at_least(observed, minimum):
 
 
 class Pins:
-    """Everything the checkout pins, read where its owner keeps it."""
+    """Pins come from their owning files in the checkout."""
 
     def __init__(self, system, source):
         self.source = Path(source).resolve()
@@ -289,7 +289,7 @@ class Pins:
 
 @dataclass
 class Options:
-    """What the host run supplies besides the mounted checkout."""
+    """The host run supplies these inputs alongside the mounted checkout."""
 
     labels: dict = field(default_factory=dict)
     engine_options: str = ""
@@ -323,7 +323,6 @@ class Qualifier:
         status = OK if at_least(observed, minimum) else MISMATCH
         self.record(check_id, status, f">= {minimum}", observed)
 
-    # --- identity and platform ------------------------------------------
     def platform(self):
         text = self.system.read("/etc/os-release") or ""
         release = dict(re.findall(r'^(\w+)="?([^"\n]*)"?$', text, re.MULTILINE))
@@ -347,7 +346,6 @@ class Qualifier:
         self.facts["house_gitlink"] = self.first_line(
             ["git", "-C", source, "ls-tree", "HEAD", "house"]) or "unrecorded"
 
-    # --- tools against their pins ---------------------------------------
     def versions(self):
         pins = self.pins
         python = ".".join(str(part) for part in self.system.python[:3])
@@ -382,7 +380,6 @@ class Qualifier:
         observed = self.found([tool, "--version"], r"version (\d+)\.")
         self.expect(check_id, self.pins.clang, observed)
 
-    # --- the Pico SDK ----------------------------------------------------
     def sdk(self):
         self.expect(
             "sdk-path", self.pins.sdk_path, self.system.environ("PICO_SDK_PATH"),
@@ -403,7 +400,6 @@ class Qualifier:
                     "every submodule checked out",
                     f"{len(rows)} listed, {len(missing)} missing")
 
-    # --- packages --------------------------------------------------------
     def apt_sources(self):
         text = self.system.read(APT_SOURCES) or ""
         uris = re.findall(r"^URIs: (\S+)$", text, re.MULTILINE)
@@ -430,7 +426,6 @@ class Qualifier:
                     "toolchain packages installed", f"missing {absent}" if absent
                     else f"{len(named)} installed")
 
-    # --- the syscall filter and ThreadSanitizer --------------------------
     def seccomp(self):
         path = self.pins.source / ".devcontainer/seccomp.json"
         data = self.system.read_bytes(path)
@@ -482,7 +477,6 @@ class Qualifier:
                         "race reported" if wanted else "no report",
                         f"exit {code}, race reported: {reported}")
 
-    # --- util's host prerequisites ---------------------------------------
     def host_library(self):
         module = (self.pins.source / "cmake/pico_family.cmake").as_posix()
         clang = f"clang++-{self.pins.clang}"
@@ -527,7 +521,6 @@ class Qualifier:
         self.record("fuzz-asan-ubsan", OK if built == 0 else MISMATCH,
                     "libFuzzer target runs", f"exit {built} {output.strip()[-200:]}")
 
-    # --- labels, GoogleTest and the default-profile control ---------------
     def image_labels(self):
         labels = self.options.labels
         for key, value in IMAGE_LABELS.items():
@@ -584,7 +577,6 @@ class Qualifier:
                     OK if BUILTIN_PROFILE in engine else MISMATCH,
                     f"{BUILTIN_PROFILE} among the engine's security options", engine)
 
-    # --- util's firmware prerequisites -----------------------------------
     def firmware(self):
         directory = self.work / "firmware"
         self.system.write(directory / "CMakeLists.txt", FIRMWARE_PROGRAM)

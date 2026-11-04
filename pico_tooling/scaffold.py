@@ -13,8 +13,7 @@ from pathlib import Path
 from .metadata import NAME, InputError
 from .sync import sync
 
-# EN-07.2: the scaffold writes a whole repository (sources, docs, workflow and
-# family files), so its area is the fixed one for repository tooling.
+# The scaffold commit covers the repository's sources, docs and configuration.
 SUBJECT = "tooling: scaffold the library from the pico family template"
 
 

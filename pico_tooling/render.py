@@ -47,7 +47,7 @@ def version():
 
 
 def infra_revision(root):
-    """Return the infra Gitlink recorded in the index, the generated pin's source."""
+    """Return the indexed infra Gitlink used to generate the bootstrap."""
     try:
         row = subprocess.run(
             ["git", "-C", str(root), "ls-files", "--stage", "--", "infra"],
