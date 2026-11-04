@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Socket client and sequencing without devices (AR-12, AR-13, AR-15)."""
+"""Tests cover the client and sequencing without devices (AR-12, AR-13, AR-15)."""
 
 import contextlib
 import dataclasses
@@ -23,7 +23,7 @@ SERIAL = "TEST-BOARD"
 
 
 class FakeProxy(socketserver.ThreadingTCPServer):
-    """Protocol-faithful peer; it never enumerates or opens a device."""
+    """A protocol peer that never enumerates or opens a device."""
 
     daemon_threads = False
 
@@ -153,11 +153,10 @@ class Handler(socketserver.BaseRequestHandler):
 
 @pytest.fixture(autouse=True)
 def proxy_search_root(tmp_path):
-    """Bound every device test to its temporary root (AR-15, EN-04.1).
+    """Bound every device test to its temporary root (AR-15).
 
-    The real parser stops at invalid metadata. A root sentinel prevents ancestor
-    discovery without mocking that parser or changing production behavior.
-    Tests with a proxy replace it with their own explicit connection metadata.
+    Invalid metadata at the temporary root stops the real parser searching
+    ancestors. Tests with a proxy replace it with their connection metadata.
     """
     (tmp_path / CONNECTION_FILE).write_text("{}")
 
@@ -272,7 +271,7 @@ def test_flash_resets_waits_loads_and_reconnects(proxy):
 
 @pytest.mark.parametrize("code", ["failed", "absent", "closed"])
 def test_flash_continues_when_reset_open_vanishes(proxy, code):
-    """AR-12: BOOTSEL enumeration proves the reset despite an open failure."""
+    """BOOTSEL enumeration proves the reset despite an open failure (AR-12)."""
     proxy.reset_error = code
     status, host = flash(proxy)
     assert status == 0, host.err.getvalue()
@@ -296,7 +295,7 @@ def test_reset_open_failure_without_bootloader_cannot_continue(
     code,
     message,
 ):
-    """AR-12: the open error and button instructions survive a BOOTSEL timeout."""
+    """The open error and button instructions survive a BOOTSEL timeout (AR-12)."""
     proxy.reset_error = code
     proxy.reset = False
     monkeypatch.setattr(device, "BOOT_WAIT", 0.01)
@@ -315,7 +314,7 @@ def test_reset_open_failure_without_bootloader_cannot_continue(
     [("denied", 2), ("busy", 1), ("token", 2), ("path", 2), ("request", 2)],
 )
 def test_reset_open_refusals_stop_without_waiting(proxy, code, expected):
-    """AR-12: a refused reset must not wait for BOOTSEL or load an image."""
+    """A refused reset must not wait for BOOTSEL or load an image (AR-12)."""
     proxy.reset_error = code
     status, host = flash(proxy)
     assert status == expected
@@ -464,7 +463,7 @@ def test_unreachable_proxy_prints_launcher_instructions(proxy):
 def test_proxy_connect_failure_names_endpoint_and_launcher_once(
     tmp_path, monkeypatch, failure,
 ):
-    """AR-15: stale connection files give one safe line, without retrying."""
+    """Stale connection files give one safe line, without retrying (AR-15)."""
     token = secrets.token_hex(16)
     (tmp_path / CONNECTION_FILE).write_text(json.dumps({
         "host": "192.0.2.1", "port": 47600, "token": token,
@@ -592,7 +591,7 @@ def test_reply_line_limit_includes_the_delimiter(proxy, length, expected):
 
 @pytest.mark.parametrize("address", ["127.0.0.1", "192.0.2.1"])
 def test_connection_file_supplies_the_ipv4_address(tmp_path, address):
-    """AR-15: the published listen address is the only client endpoint."""
+    """The published listen address is the only client endpoint (AR-15)."""
     path = tmp_path / CONNECTION_FILE
     data = {"host": address, "port": 47600, "token": "fixture"}
     path.write_text(json.dumps(data))
@@ -618,14 +617,14 @@ def test_connection_file_supplies_the_ipv4_address(tmp_path, address):
     ],
 )
 def test_invalid_connection_host_cannot_select_an_endpoint(tmp_path, address):
-    """AR-15: malformed and wildcard endpoints are unavailable, not defaults."""
+    """Malformed and wildcard endpoints are unavailable (AR-15)."""
     data = {"host": address, "port": 47600, "token": "fixture"}
     (tmp_path / CONNECTION_FILE).write_text(json.dumps(data))
     assert find_connection(tmp_path) is None
 
 
 def test_legacy_connection_without_host_requires_setup(tmp_path, monkeypatch):
-    """AR-15: an old file never falls back to another network route."""
+    """An old file never falls back to another network route (AR-15)."""
     (tmp_path / CONNECTION_FILE).write_text(
         json.dumps({"port": 47600, "token": "fixture"}),
     )
@@ -641,7 +640,7 @@ def test_legacy_connection_without_host_requires_setup(tmp_path, monkeypatch):
 
 @pytest.mark.parametrize("relative", [".", "nested"])
 def test_proxy_discovery_cannot_escape_the_test_directory(tmp_path, relative):
-    """AR-15, EN-04.1: an ancestor connection must never select a real proxy."""
+    """An ancestor connection must never select a real proxy (AR-15)."""
     decoy = tmp_path.parent / CONNECTION_FILE
     assert not decoy.exists()
     decoy.write_text(json.dumps({
@@ -681,7 +680,7 @@ def reply_clock(proxy, monkeypatch):
 
     def request(backend, **fields):
         if state.reset_pending and fields["cmd"] == "list":
-            # Wait for the peer's reset close, independently of the modeled budget.
+            # Wait for the peer's reset close, independently of the modelled deadline.
             assert proxy.reset_complete.wait(1), "fake peer did not handle reset close"
             state.reset_pending = False
         state.fields = fields
@@ -707,7 +706,7 @@ def reply_clock(proxy, monkeypatch):
 
 
 def test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout(proxy, reply_clock):
-    """AR-12: a 12s modeled list reply succeeds within its 30s reply wait."""
+    """A modelled 12-second list reply succeeds within its 30-second wait (AR-12)."""
     reply_clock.delay = lambda fields, _reply: 12 if fields["cmd"] == "list" else 0
     status, host = invoke(proxy, "list", host=reply_clock.host)
     assert status == 0, host.err.getvalue()
@@ -716,7 +715,7 @@ def test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout(proxy, reply
 
 
 def test_reply_timeout_outside_poll_names_request_and_wait(proxy, reply_clock):
-    """AR-12: a request outside a polling budget fails once with its wait."""
+    """A request outside a polling budget fails once with its wait (AR-12)."""
     reply_clock.delay = lambda _fields, _reply: 31
     status, host = invoke(proxy, "list", host=reply_clock.host)
     assert status == 1
@@ -730,7 +729,7 @@ def test_reply_timeout_outside_poll_names_request_and_wait(proxy, reply_clock):
 def test_bootsel_probe_reply_timeout_retries_and_flash_completes(
     proxy, reply_clock, monkeypatch,
 ):
-    """AR-12: a probe timeout does not consume the whole BOOTSEL budget."""
+    """A probe timeout does not consume the whole BOOTSEL budget (AR-12)."""
     monkeypatch.setattr(device_proxy, "REPLY_WAIT", 2)
     reset = []
     delayed = []
@@ -753,7 +752,7 @@ def test_bootsel_probe_reply_timeout_retries_and_flash_completes(
 def test_bootsel_probe_reply_wait_is_capped_by_loop_budget(
     proxy, reply_clock, monkeypatch,
 ):
-    """AR-12: an exhausted probe budget uses the existing BOOTSEL finding."""
+    """An exhausted probe wait reports the BOOTSEL timeout (AR-12)."""
     monkeypatch.setattr(device, "BOOT_WAIT", 20)
     reset = []
 
@@ -771,7 +770,7 @@ def test_bootsel_probe_reply_wait_is_capped_by_loop_budget(
 
 
 def test_console_deadline_caps_open_reply_wait(proxy, reply_clock):
-    """AR-13: time spent before open reduces its remaining reply wait."""
+    """Time spent before open reduces its remaining reply wait (AR-13)."""
     def before(fields):
         if fields["cmd"] == "open":
             reply_clock.now += 6
@@ -789,7 +788,7 @@ def test_console_deadline_caps_open_reply_wait(proxy, reply_clock):
 
 @pytest.mark.parametrize("reply", [b"not json\n", b"[]\n", b'{"ok":42}\n', b""])
 def test_invalid_or_closed_reply_names_request(proxy, reply):
-    """AR-12: reply failures identify the command without exposing the token."""
+    """Reply failures identify the command without exposing the token (AR-12)."""
     proxy.protocol_error = reply
     status, host = invoke(proxy, "list")
     assert status in {1, 2}
@@ -803,7 +802,7 @@ def test_invalid_or_closed_reply_names_request(proxy, reply):
 def test_expired_deadline_before_send_does_not_blame_proxy(
     proxy, monkeypatch, initial_time, attempts_expected,
 ):
-    """AR-12: an unsent request reports deadline exhaustion, not a reply failure."""
+    """An unsent request reports deadline exhaustion (AR-12)."""
     now = [initial_time]
     attempts = []
     host = dataclasses.replace(host_of(proxy), clock=lambda: now[0])
@@ -826,7 +825,7 @@ def test_expired_deadline_before_send_does_not_blame_proxy(
 
 
 def test_poll_treats_deadline_exhausted_before_request_as_not_ready(proxy, monkeypatch):
-    """AR-12: an unsent probe exhausting the deadline keeps the polling result."""
+    """An unsent probe exhausting the deadline keeps the polling result (AR-12)."""
     now = [0]
     host = dataclasses.replace(host_of(proxy), clock=lambda: now[0])
     backend = device.choose(host)

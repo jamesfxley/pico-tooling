@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""CLI importability without POSIX board locks (AR-12)."""
+"""These tests check CLI imports without POSIX board locks (AR-12)."""
 
 import os
 import subprocess
@@ -9,7 +9,7 @@ from tests.conftest import ROOT
 
 
 def run_isolated(code, **environ):
-    """Run `code` with this checkout importable but not House, as a user would."""
+    """Run `code` with this checkout importable and House absent from the path."""
     program = f"import sys\nsys.path.insert(0, {str(ROOT)!r})\n{code}"
     return subprocess.run(
         [sys.executable, "-I", "-c", program], capture_output=True, text=True,

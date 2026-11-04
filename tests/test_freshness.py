@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Infra freshness against annotated release tags and warning annotations (AR-3)."""
+"""These tests check infrastructure freshness and workflow warnings (AR-3)."""
 
 import pytest
 

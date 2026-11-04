@@ -234,14 +234,14 @@ def test_the_repository_owns_no_shell_script(suffix):
 
 
 def test_only_the_distro_setup_is_a_posix_shell_script():
-    # AR-15: provisioning runs inside WSL, outside the Python container runner.
+    # Provisioning runs inside WSL, outside the Python container runner (AR-15).
     assert [row[3] for row in tracked() if row[3].endswith(".sh")] == [
         "host/in-dev-distro.sh",
     ]
 
 
 def test_only_the_declared_host_proxy_scripts_are_powershell():
-    # AR-15 owns the proxy entry points and their no-device CI test.
+    # The proxy entry points have a CI test that needs no device (AR-15).
     assert [row[3] for row in tracked() if row[3].endswith(".ps1")] == [
         "host/device-proxy.ps1",
         "host/setup-dev-distro.ps1",
@@ -283,7 +283,7 @@ def test_no_image_revision_argument_is_required():
 
 
 def test_the_distro_setup_inputs_are_pinned_and_the_shell_is_carried():
-    # AR-15: no Desktop export or additional source-repository dependency.
+    # Setup needs no Desktop export or additional source repository (AR-15).
     setup = (ROOT / "host/setup-dev-distro.ps1").read_text(encoding="utf-8")
     [url] = re.findall(r'^\$ImageUrl = "([^"]+)"$', setup, re.MULTILINE)
     assert re.fullmatch(

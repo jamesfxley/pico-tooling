@@ -56,9 +56,9 @@ def test_a_hardcoded_platform_template_refuses_the_scaffold(tmp_path, infra_sour
 
 
 def test_the_scaffold_commit_subject_follows_the_commit_rule(library):
-    # EN-07.2: <area>: <summary>, a listed area, imperative lowercase, 72 or
-    # fewer characters, no final full stop. The commits gate also passes in
-    # test_scaffold_passes_ci_with_the_family_route.
+    # The subject has a listed area, imperative lowercase summary, at
+    # most 72 characters and no final full stop (EN-07.2). The scaffold CI
+    # test also runs the commits gate.
     subject = git(library, "log", "-1", "--format=%s")
     assert subject == "tooling: scaffold the library from the pico family template"
     assert len(subject) <= 72
@@ -70,7 +70,7 @@ def test_the_scaffold_commit_subject_follows_the_commit_rule(library):
 
 
 def test_scaffold_history_records_only_the_distribution_url(tmp_path, infra_source):
-    # AR-7: the local checkout path must never enter committed pin metadata.
+    # The local checkout path must never enter committed pin metadata (AR-7).
     url = "https://example.invalid/distribution/pico-tooling.git"
     destination = tmp_path / "history library"
     run(sys.executable, "-m", "pico_tooling", "scaffold", destination,
@@ -82,7 +82,7 @@ def test_scaffold_history_records_only_the_distribution_url(tmp_path, infra_sour
 
 
 def test_scaffold_name_defines_the_cmake_package_and_targets(tmp_path, infra_source):
-    # AR-7: distribution names map to CMake identifiers and option prefixes.
+    # Distribution names map to CMake identifiers and option prefixes (AR-7).
     destination = scaffold(
         infra_source, tmp_path / "named library", name="pico-drv8833",
     )
@@ -102,7 +102,7 @@ def test_scaffold_name_defines_the_cmake_package_and_targets(tmp_path, infra_sou
 
 
 def test_scaffold_instructions_describe_a_library(library):
-    # AR-2, AR-7: root instructions describe the consumer's repository role.
+    # Root instructions describe the consumer's repository role (AR-2, AR-7).
     text = (library / "AGENTS.md").read_text()
     assert "This repository is a library in a product family." in text
     assert "owns a product family's packages" not in text

@@ -97,7 +97,7 @@ def workflow_model(library):
 
 
 def test_library_jobs_inherit_the_pinned_family_image(library):
-    # AR-2: hosted library CI runs in the family image pinned by digest.
+    # Hosted library CI runs in the family image pinned by digest (AR-2).
     family_config = tomllib.loads((library / "infra/family.toml").read_text())
     image = family_config["ci"]["container"]
     assert re.fullmatch(r"ghcr\.io/jamesfxley/pico-tooling@sha256:[0-9a-f]{64}", image)
@@ -108,8 +108,8 @@ def test_library_jobs_inherit_the_pinned_family_image(library):
 
 
 def test_family_container_user_survives_repository_job_overrides(library):
-    # AR-2: the inherited user applies even when repository require rows replace
-    # family rows, including a group that already declares container options.
+    # The inherited user applies even when repository require rows replace
+    # family rows, including a group with its own container options (AR-2).
     config = library / "house.toml"
     declaration = 'container = "example.invalid/ci@sha256:' + "a" * 64 + '"\n'
     text = config.read_text().replace("[ci]\n", "[ci]\n" + declaration)

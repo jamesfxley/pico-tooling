@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""The footprint and symbols gates against synthetic images, nm and size output.
+"""These tests exercise the embedded gates with synthetic binutils output.
 
 An image or object is a JSON file; the fake arm-none-eabi-size and -nm tools
 print what it holds, so no cross toolchain is needed and every number is chosen
@@ -50,7 +50,7 @@ def declare(root, text):
 
 
 def newer(root, path, *, by=100):
-    """Date `path` after every owned source, as a build run afterwards would."""
+    """Date `path` after every owned source to represent a fresh build."""
     stamp = (root / "src/main.c").stat().st_mtime + by
     os.utime(path, (stamp, stamp))
 
@@ -78,8 +78,6 @@ def verdict(gate, repo):
     return result.status, result.message, [item.message for item in result.findings]
 
 
-# -- footprint: the eight cases of the old gate ------------------------------
-
 
 def test_an_image_within_budget_passes(tree):
     image(tree)
@@ -90,7 +88,7 @@ def test_an_image_within_budget_passes(tree):
 
 @pytest.mark.parametrize("profile", [None, "default", "p8-rp2350"])
 def test_footprint_conditions_select_only_matching_rows(tree, monkeypatch, profile):
-    """AR-11: unmet rows are reported without being measured or passed."""
+    """Unmet rows are reported without being measured or passed (AR-11)."""
     monkeypatch.delenv("HOUSE_MATRIX_PROFILE", raising=False)
     if profile is not None:
         monkeypatch.setenv("HOUSE_MATRIX_PROFILE", profile)
@@ -117,7 +115,7 @@ def test_footprint_conditions_select_only_matching_rows(tree, monkeypatch, profi
 def test_unmet_conditions_are_reported_even_when_another_image_is_missing(
     tree, monkeypatch,
 ):
-    """AR-11: unavailable measurements do not hide informational conditions."""
+    """Unavailable measurements do not hide informational conditions (AR-11)."""
     monkeypatch.delenv("HOUSE_MATRIX_PROFILE", raising=False)
     conditional = table(ram_kib=2, when='{ profile = "large" }')
     conditional = conditional.replace('name = "bench"', 'name = "tight"')
@@ -132,7 +130,7 @@ def test_unmet_conditions_are_reported_even_when_another_image_is_missing(
 def test_footprint_conditions_require_every_axis_before_opening_an_image(
     tree, monkeypatch,
 ):
-    """AR-11: a matching profile alone cannot satisfy a second condition."""
+    """A matching profile alone cannot satisfy a second condition (AR-11)."""
     monkeypatch.setenv("HOUSE_MATRIX_PROFILE", "large")
     monkeypatch.delenv("HOUSE_MATRIX_BOARD", raising=False)
     repo = declare(
@@ -171,7 +169,7 @@ def test_footprint_conditions_require_every_axis_before_opening_an_image(
     ],
 )
 def test_malformed_footprint_conditions_are_refused_by_name(tree, when, expected):
-    """AR-11: condition errors cannot silently skip a budget."""
+    """Condition errors cannot silently skip a budget (AR-11)."""
     status, message, _ = verdict(FOOTPRINT, declare(tree, table(ram_kib=8, when=when)))
     assert status == 2
     assert expected in message
@@ -230,8 +228,6 @@ def test_a_missing_image_cannot_run(tree):
     assert "bench: no image at build/app.elf; build the firmware first" in message
 
 
-# -- footprint: stale builds and unavailable tools ---------------------------
-
 
 def test_an_image_older_than_an_owned_source_cannot_run(tree):
     image(tree, by=-100)
@@ -266,8 +262,6 @@ def test_the_gate_takes_no_arguments(tree):
     result = FOOTPRINT.run(declare(tree, table(ram_kib=1)), ("--x",))
     assert result.status == 2
 
-
-# -- symbols: the eight cases of the old gate --------------------------------
 
 
 def objects(root, sources, *, origin=None, by=100):
@@ -370,8 +364,6 @@ def test_an_image_free_of_the_set_passes(tree):
     assert verdict(SYMBOLS, repo)[0] == 0
 
 
-# -- symbols: negative controls ----------------------------------------------
-
 
 def control(where, *names, mode="objects"):
     return listed(where, *names, mode=mode) + 'expect = "refused"\n'
@@ -432,8 +424,6 @@ def test_expect_accepts_only_refused(tree):
     assert status == 2
     assert "symbols[1].expect: expected 'refused'" in message
 
-
-# -- symbols: stale builds, unreadable inputs, one mutation per set ----------
 
 
 def test_an_object_older_than_its_source_cannot_run(tree):
@@ -498,8 +488,6 @@ def test_each_set_flags_its_symbol_and_only_its_symbol(
     assert found == [f"probe: {forbidden} ({name})"]
     assert run(allowed)[0] == 0
 
-
-# -- pico.toml refusals -------------------------------------------------------
 
 
 @pytest.mark.parametrize(

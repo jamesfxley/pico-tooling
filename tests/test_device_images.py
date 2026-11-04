@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Image and credentials decisions, against fixtures (AR-12).
+"""These tests check image selection and credentials using fixtures (AR-12).
 
 No case touches a board.
 """
@@ -19,8 +19,6 @@ def touch(root, *names):
         (root / name).parent.mkdir(parents=True, exist_ok=True)
         (root / name).touch()
 
-
-# -- image (10) ----------------------------------------------------------------
 
 
 @pytest.fixture
@@ -87,8 +85,6 @@ def test_every_image_is_counted_once(trees):
 def test_an_empty_tree_counts_none(trees):
     assert built_images(trees / "empty") == []
 
-
-# -- credentials (4) -----------------------------------------------------------
 
 
 @pytest.fixture

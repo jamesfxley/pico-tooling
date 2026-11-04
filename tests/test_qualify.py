@@ -43,7 +43,7 @@ def good_labels():
 
 
 class FakeSystem(System):
-    """Answers each command from a table keyed by the command's text."""
+    """The fake system answers commands from a table keyed by their text."""
 
     def __init__(self, source, **replace):
         pins = Pins(System(), source)
