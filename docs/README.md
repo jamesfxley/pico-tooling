@@ -8,7 +8,7 @@
 | [Build](build.md) | How is a library built and gated? |
 | [New library](new-library.md) | How do I start a library? |
 | [Device guide](../guides/device.md) | How do I identify, flash and watch a board? |
-| [Constrained targets](../guides/constrained-targets/SKILL.md) | How do I budget and prove footprint and allocation? |
+| [Constrained targets](../guides/constrained-targets/SKILL.md) | How do I measure footprint and check allocation? |
 | [Orientation](orientation.md) | What are the invariants? |
 | [Deviations](deviations.md) | Which exceptions are approved? |
 | [Budget](deviation-budget.txt) | What are the ceilings? |
