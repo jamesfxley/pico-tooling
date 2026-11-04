@@ -1,10 +1,11 @@
 # Device operations
 
 Run `python3 -m infra.pico_tooling device` from a family library in the dev
-container. The Windows host proxy is the only backend. Python owns the host
-allow-list check, board lock, reset, wait, flash and console. The proxy owns
-its host allow-list and accepts only workspace-relative loads. Commands never
-build or select an unnamed board.
+container. The [family README](../README.md) defines the shared terms. The
+Windows host proxy is the only backend. Python owns the host allow-list check,
+board lock, reset, wait, flash and console. The proxy owns its host allow-list
+and accepts only workspace-relative loads. Commands never build or select an
+unnamed board.
 
 ## Supported platforms
 
@@ -22,8 +23,8 @@ local-device backend is supplied (FW-2).
 
 ## One-time setup
 
-Install and enable WSL first (WSL 2.4.10 or newer). From an unelevated
-Windows PowerShell 5.1 window, run the family's distro setup:
+Install and enable WSL first (WSL 2.4.10 or newer). From an unelevated Windows
+PowerShell 5.1 window, run the family's distro setup:
 
 ```powershell
 & <family>\host\setup-dev-distro.ps1
@@ -38,24 +39,26 @@ already downloaded copy with the same checksum; the original file is kept.
 from the Windows user. Existing distros/directories, non-amd64 hosts and a
 non-NAT networkingMode in .wslconfig are refused before installation.
 
-The setup copies `host/in-dev-distro.sh` through the distro's UNC share,
-runs it as root, then restarts that distro and waits for Docker. The script
-keeps systemd on, Windows interop/PATH injection off, and drive automounting
-and fstab processing off. `verify` prints failed systemd units and the binfmt
-listing. The distro's wsl.conf disables interop; Microsoft documents
-[that setting as controlling Windows-process launch support](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
+The setup copies `host/in-dev-distro.sh` through the distro's UNC share, runs
+it as root, then restarts that distro and waits for Docker. The script keeps
+systemd on, Windows interop/PATH injection off, and drive automounting and
+fstab processing off. `verify` prints failed systemd units and the binfmt
+listing. The distro's wsl.conf disables interop; Microsoft documents [that
+setting as controlling Windows-process launch
+support](https://learn.microsoft.com/en-us/windows/wsl/wsl-config#interop-settings).
 
-Setup retains a partially installed distro on failure. It does not remove
-or overwrite a distro. Deliberate removal permanently deletes its whole
-filesystem, including every workspace, image and setting. See [distro removal](../docs/usage-guide.md#distro-removal)
-and preserve anything needed before doing so.
+Setup retains a partially installed distro on failure. It does not remove or
+overwrite a distro. Deliberate removal permanently deletes its whole
+filesystem, including every workspace, image and setting. See [distro
+removal](../docs/usage-guide.md#distro-removal) and preserve anything needed
+before doing so.
 
 Use an ordinary Windows VS Code window. Enable Dev Containers' `executeInWSL`
 and set `executeInWSLDistro` to `pico-dev`. Open the workspace by its Windows
 UNC path, for example `\\wsl.localhost\pico-dev\home\<user>\<folder>`, then
 reopen in its container. The WSL extension's installer requires the Windows
-drive mount and is not the entry point for this configuration. Decline
-VS Code's offer to reopen the folder in WSL, and do not use a recent entry or
+drive mount and is not the entry point for this configuration. Decline VS
+Code's offer to reopen the folder in WSL, and do not use a recent entry or
 Remote Explorer item labelled WSL; those use the WSL extension.
 
 In Windows PowerShell 5.1, run the pinned family's setup script with exactly
@@ -68,35 +71,36 @@ the same workspace path:
 Setup copies the proxy and `start-device-proxy.ps1` launcher into the current
 user's pico configuration directory and sets its access rules to allow only
 that user; administrators' ownership and backup privileges still apply. It
-reads/updates access rules only, leaving ownership and audit settings untouched.
-A protected folder with exactly one inheritable user FullControl allow rule
-needs no access-rule update. Setup refuses unexpected entries before mutation;
-the five expected files are device-proxy.ps1, start-device-proxy.ps1,
-device-proxy.json, device-proxy.log and devices.toml. Subdirectories are refused.
-`device-proxy.log` records exceptions and slow requests: a queue or handling time
-of at least three seconds produces one ISO-UTC timestamped line with the command,
-serial when given, accept-to-handler queue time and handler-to-reply time.
-An `open` timing ends at its JSON reply, excluding the serial stream lifetime.
-The slow-request line never includes the workspace token.
+reads/updates access rules only, leaving ownership and audit settings
+untouched. A protected folder with exactly one inheritable user FullControl
+allow rule needs no access-rule update. Setup refuses unexpected entries
+before mutation; the five expected files are device-proxy.ps1,
+start-device-proxy.ps1, device-proxy.json, device-proxy.log and devices.toml.
+Subdirectories are refused. `device-proxy.log` records exceptions and slow
+requests: a queue or handling time of at least three seconds produces one
+ISO-UTC timestamped line with the command, serial when given,
+accept-to-handler queue time and handler-to-reply time. An `open` timing ends
+at its JSON reply, excluding the serial stream lifetime. The slow-request line
+never includes the workspace token.
 
-Only the firewall operation requests elevation. Setup creates the inbound
-TCP rule `pico-device-proxy-wsl`, on the configured port (default 47600),
-with `RemoteAddress LocalSubnet4`, `Profile Any` and no interface restriction.
-A matching enabled rule is kept without elevation. Setup replaces a rule of
-that name with different settings in one elevated child and names the
-replacement in its output. The scope uses Microsoft's local-IPv4-subnet
-keyword rather than an adapter identity, so it has no adapter reference to
-refresh after a restart. Microsoft defines the keyword as all local IPv4
-addresses, and the rule admits them to the port; the proxy
+Only the firewall operation requests elevation. Setup creates the inbound TCP
+rule `pico-device-proxy-wsl`, on the configured port (default 47600), with
+`RemoteAddress LocalSubnet4`, `Profile Any` and no interface restriction. A
+matching enabled rule is kept without elevation. Setup replaces a rule of that name
+with different settings in one elevated child and names the replacement in its
+output. The scope uses Microsoft's local-IPv4-subnet keyword, which needs no
+adapter reference refreshed after a restart. Microsoft defines the keyword as
+all local IPv4 addresses, and the rule admits them to the port; the proxy
 still listens only on Windows' WSL gateway address and requires the workspace
-token. See [Microsoft's rule parameters](https://learn.microsoft.com/en-us/powershell/module/netsecurity/new-netfirewallrule).
+token. See [Microsoft's rule
+parameters](https://learn.microsoft.com/en-us/powershell/module/netsecurity/new-netfirewallrule).
 `-NoFirewall` skips this operation for CI or a machine without the distro.
-Updating stops an old installed proxy and removes its connection files;
-an old pico-device-proxy.lnk is removed and named in the output.
-Setup starts no proxy and creates no logon entry.
+Updating stops an old installed proxy and removes its connection files; an old
+pico-device-proxy.lnk is removed and named in the output. Setup starts no
+proxy and creates no logon entry.
 
-Setup prints the host allow-list location. Enumerate serials with the installed
-copy in Windows PowerShell:
+Setup prints the host allow-list location. Enumerate serials with the
+installed copy in Windows PowerShell:
 
 ```powershell
 & (Join-Path $env:APPDATA 'pico/device-proxy.ps1') -List
@@ -111,8 +115,8 @@ serial = "BOARD-SERIAL"
 label = "bench board"
 ```
 
-The host reader accepts only these fields, double-quoted unescaped strings
-and optional comments. A malformed allow-list authorizes nothing.
+The host reader accepts only these fields, double-quoted unescaped strings and
+optional comments. A malformed allow-list authorizes nothing.
 
 ## Start before opening the container
 
@@ -126,16 +130,17 @@ It reads the distro's default gateway, verifies that it is Windows' IPv4
 address on the WSL adapter, checks Docker and the firewall rule, then starts
 the installed proxy copy hidden on that address. A missing distro, unavailable
 Docker service, missing/mismatched rule or occupied port stops with a message.
-It waits for an authenticated answer without enumerating/opening a board,
-then prints that the container can now be opened.
+It waits for an authenticated answer without enumerating/opening a board, then
+prints that the container can now be opened.
 
 The proxy queries the distro's Docker Engine every three seconds for running
-dev containers whose devcontainer.local_folder label matches a configured workspace.
-It waits at most five minutes for the first matching running dev container,
-then exits normally once none is running, removing its connection files and
-closing active sessions. If the initial wait expires, run the launcher again.
-With no `-Distro`, the proxy runs until stopped; that loopback mode serves the
-no-device Windows CI test. The container never starts the Windows proxy.
+dev containers whose devcontainer.local_folder label matches a configured
+workspace. It waits at most five minutes for the first matching running dev
+container, then exits normally once none is running, removing its connection
+files and closing active sessions. If the initial wait expires, run the
+launcher again. With no `-Distro`, the proxy runs until stopped; that loopback
+mode serves the no-device Windows CI test. The container never starts the
+Windows proxy.
 
 Each workspace's private `.pico-device-proxy.json` carries `host`, `port` and
 `token`. Host is a non-wildcard unicast IPv4 literal; the CLI connects only to
@@ -143,10 +148,10 @@ that address. Keep the file untracked and private. A token grants the served
 workspace's files and the boards in the host allow-list. Missing/invalid setup
 or an unreachable proxy exits 2 with setup/launcher instructions.
 
-`setup-device-proxy.ps1 -Remove` stops the installed copy, removes its launcher,
-connection files and any old shortcut, and removes the firewall rule through
-one elevated child. It preserves device-proxy.json and devices.toml. With
-`-NoFirewall`, removal leaves the firewall untouched.
+`setup-device-proxy.ps1 -Remove` stops the installed copy, removes its
+launcher, connection files and any old shortcut, and removes the firewall rule
+through one elevated child. It preserves device-proxy.json and devices.toml.
+With `-NoFirewall`, removal leaves the firewall untouched.
 
 ## List and authorize
 
@@ -157,9 +162,9 @@ python3 -m infra.pico_tooling device list [--json]
 List reads enumeration data without opening a serial port or loading an image.
 It shows serial, ports, bootloader drive and host allow-list membership. Check
 the physical board and intended image before authorizing an action; the proxy
-does not infer a board model from a port. Acting commands require `--serial S`;
-there is no default board. Authorization is checked in Python through `allowed`
-and again by the host before `open` or `load`.
+does not infer a board model from a port. Acting commands require `--serial
+S`; there is no default board. Authorization is checked in Python through
+`allowed` and again by the host before `open` or `load`.
 
 A bootloader drive is tied to its board through the Windows device tree. The
 proxy starts at the disk drive's PNPDeviceID and follows DEVPKEY_Device_Parent
@@ -167,14 +172,13 @@ at most four times, accepting the first identifier with Raspberry Pi's USB
 vendor ID 0x2E8A; an RP2350 whose OTP overrides the vendor ID is not found. It
 uses the last segment of that identifier, not a parsed disk-instance suffix.
 Windows sets that segment to the device's USB serial when the device reports
-one and to location information otherwise. If no
-accepted ancestor is found, the drive's serial is empty: it is never listed
-as allowed or matched by a load. Before a first flash, check one board in
-normal mode,
-then unplug it and replug it with BOOTSEL held, running host `-List` in each
-mode. A bootloader drive must report the same non-empty serial. A mismatch or
-missing/ambiguous enumeration is a finding: do not assume `load` can locate the
-board and do not flash. No serial translation or fallback is provided.
+one and to location information otherwise. If no accepted ancestor is found,
+the drive's serial is empty: it is never listed as allowed or matched by a
+load. Before a first flash, check one board in normal mode, then unplug it and
+replug it with BOOTSEL held, running host `-List` in each mode. A bootloader
+drive must report the same non-empty serial. A mismatch or missing/ambiguous
+enumeration is a finding: do not assume `load` can locate the board and do not
+flash. No serial translation or fallback is provided.
 
 ## Build and flash
 
@@ -191,33 +195,35 @@ python3 -m infra.pico_tooling device bootsel --serial S [--port P]
 
 `--dry-run` prints the plan without a reset or copy; it still needs the proxy
 and authorization. A real flash holds one advisory lock per serial throughout
-reset, load, reconnect and any requested console session. A second command exits
-1 naming the holder. Locks use your private runtime directory, with a private
-per-user temporary directory as fallback. Host serial opens also fail if busy.
+reset, load, reconnect and any requested console session. A second command
+exits 1 naming the holder. Locks use your private runtime directory, with a
+private per-user temporary directory as fallback. Host serial opens also fail
+if busy.
 
-A running board is opened at 1200 baud for the reset. SDK 2.3.0 defines this in
-`src/rp2_common/pico_usb_reset/include/pico/usb_reset_config.h:10–27` and handles
-it in `pico_usb_reset/usb_reset.c:147–148`. It needs firmware using the SDK's USB
-stdio with baud reset enabled; firmware driving TinyUSB directly does not enable
-it by default. The firmware can reset while the 1200-baud open is still in
-progress, so the open can fail even though the reset happened (FW-3).
-An open refused with `failed` or `absent`, or a connection closed before the
-open reply, still leads to the BOOTSEL wait. If the named bootloader appears,
-the CLI reports that the port vanished during the reset as expected and
-continues. Otherwise it exits 2 with the open error and BOOTSEL instructions.
-`token`, `denied`, `path`, `request` and `busy` refusals stop immediately with
-their normal statuses. **A blank board's first flash needs the BOOTSEL button:** hold
-it while connecting the board, then use `--no-touch`. That option refuses a
-board not already in BOOTSEL. Python waits up to 30 seconds for the named
-bootloader, requests the load, then waits up to 30 seconds for that serial's
-application port. A missing reset or reconnect is a failure, never proof of
-successful flashing. Firmware without USB serial cannot satisfy reconnect.
+A running board is opened at 1200 baud for the reset. SDK 2.3.0 defines this
+in `src/rp2_common/pico_usb_reset/include/pico/usb_reset_config.h:10–27` and
+handles it in `pico_usb_reset/usb_reset.c:147–148`. It needs firmware using
+the SDK's USB stdio with baud reset enabled; firmware driving TinyUSB directly
+does not enable it by default. The firmware can reset while the 1200-baud open
+is still in progress, so the open can fail even though the reset happened
+(FW-3). An open refused with `failed` or `absent`, or a connection closed
+before the open reply, still leads to the BOOTSEL wait. If the named
+bootloader appears, the CLI reports that the port vanished during the reset as
+expected and continues. Otherwise it exits 2 with the open error and BOOTSEL
+instructions. `token`, `denied`, `path`, `request` and `busy` refusals stop
+immediately with their normal statuses. A blank board's first flash needs the
+BOOTSEL button. Hold it while connecting the board, then use `--no-touch`.
+That option refuses a board not already in BOOTSEL. Python waits up to 30
+seconds for the named bootloader, requests the load, then waits up to 30
+seconds for that serial's application port. A missing reset or reconnect is a
+failure, never proof of successful flashing. Firmware without USB serial
+cannot satisfy reconnect.
 
-The host refuses ambiguous drives, paths outside the token's workspace, missing
-files and reparse-point paths (including junctions and symbolic links). A copy
-error fails even when the drive disappears. UF2 copying does not read the image
-back; a successful command is not a firmware correctness or byte-verification
-claim.
+The host refuses ambiguous drives, paths outside the token's workspace,
+missing files and reparse-point paths (including junctions and symbolic
+links). A copy error fails even when the drive disappears. UF2 copying does
+not read the image back; a successful command is not a firmware correctness or
+byte-verification claim.
 
 ## Watch the console
 
@@ -228,21 +234,22 @@ python3 -m infra.pico_tooling device console --serial S [--port P] [--until RE -
 The console opens at 115200 baud with DTR and RTS asserted. Interactive mode
 forwards standard input and copies output until Ctrl+C or termination. On a
 lost connection it waits for the same serial and reconnects. `--port` chooses
-among that board's ports; ambiguity exits 3 rather than guessing.
+among that board's ports. Ambiguity exits 3.
 
-Agent mode requires both `--until RE` and a finite positive `--timeout S`.
-It does not forward input. It matches decoded UTF-8 across received chunks in
-the most recent 65,536 characters, returns 0 on a match and 1 on timeout,
+Agent mode requires both `--until RE` and a finite positive `--timeout S`. It
+does not forward input. It matches decoded UTF-8 across received chunks in the
+most recent 65,536 characters, returns 0 on a match and 1 on timeout,
 including time waiting for a reconnect or a proxy reply. `--log FILE` appends
-exact received bytes in either mode. Invalid options or an unusable log exit 2. Output before
-the console attaches is not captured; use `flash --console` and firmware that
-waits for USB connection or reports on request when startup output matters.
+exact received bytes in either mode. Invalid options or an unusable log exit
+2. Output before the console attaches is not captured; use `flash --console`
+and firmware that waits for USB connection or reports on request when startup
+output matters.
 
 ## Device tests
 
 A device test runs the cases a host test cannot establish, on the board, and
-reports each one on the console. It has no command of its own: it is an image
-run with `device flash --console`, and the verdict is a search of the log.
+reports each one on the console. It has no command of its own: the image runs
+with `device flash --console`, and the verdict is a search of the log.
 
 The image prints:
 
@@ -274,48 +281,49 @@ python3 -m infra.pico_tooling device flash --serial <S> --console \
   && grep -q '^device-test: PASS' "$RUN/device-test.log"
 ```
 
-Exit status 0 means the run passed. `--log` appends, so the `rm -f` starts each
-run with an empty log; otherwise a PASS from an earlier run would satisfy the
-grep. The flash command's match exits 0 on FAIL as well as on PASS, so the grep
-is the verdict. The image waits up to 30 seconds for the USB console before it
-prints, because output sent before a console attaches is lost; whether DTR
-reaches the board is UNCONFIRMED, below. Naming `tests/device` selects
-`build-firmware/tests/device/*.uf2`.
+Exit status 0 means the run passed. `--log` appends, so the `rm -f` starts
+each run with an empty log. A retained PASS from an earlier run could satisfy
+`grep`. The flash command's match exits 0 on FAIL as well as on PASS, so the
+grep is the verdict. The image waits up to 30 seconds for the USB console
+before it prints, because output sent before a console attaches is lost;
+whether DTR reaches the board is UNCONFIRMED, below. Naming `tests/device`
+selects `build-firmware/tests/device/*.uf2`.
 
 The image's source is read when the build is configured: `dev.py build`
-configures on every call, but a build run straight through CMake after a commit
-or an edit keeps the identity of the last configure. Commit before the run. A
-run is evidence for a pull request only when the identity line names the pull
-request's head commit with no `-dirty`; review checks that, since the tooling
-does not. Record the run in the pull request's Verification section: the board
-serial, the identity line, the command and the verdict line.
+configures on every call, but a build run straight through CMake after a
+commit or an edit keeps the identity of the last configure. Commit before the
+run. A run is evidence for a pull request only when the identity line names
+the pull request's head commit with no `-dirty`; review checks that, since the
+tooling does not. Record the run in the pull request's Verification section:
+the board serial, the identity line, the command and the verdict line.
 
-A device test measures nothing. A measurement is a benchmark, and benchmarks are
-a separate tier.
+Device tests and benchmarks follow [EN-06.9 and
+EN-06.10](../house/standard/engineering/06-release-and-versioning.md).
 
 The firmware side is `device_test/include/pico_family/device_test.hpp`, with
-`pico_family_add_device_test` to add the image (see the usage guide and
-`docs/new-library.md`).
+`pico_family_add_device_test` to add the image (see the [usage
+guide](../docs/usage-guide.md#cmake-entry-points) and [new-library
+guide](../docs/new-library.md#device-tests)).
 
 ## Protocol
 
-One newline-delimited UTF-8 JSON request per TCP connection, always with
-`token`. `Read-Line` accepts at most 65,535 bytes before the LF delimiter;
-it refuses another non-LF byte once that count is reached. LF is not counted.
-Replies have `ok: true` or `ok: false`, `code` and
-`error`. After a successful `open` reply, all following bytes are raw serial
-traffic in both directions until closure.
+Each TCP connection carries one newline-delimited UTF-8 JSON request with
+`token`. `Read-Line` accepts at most 65,535 bytes before the LF delimiter; it
+refuses another non-LF byte once that count is reached. LF is not counted.
+Replies have `ok: true` or `ok: false`, `code` and `error`. After a successful
+`open` reply, all following bytes are raw serial traffic in both directions
+until closure.
 
 Connecting has a 10-second timeout and one attempt. Each request waits up to
 30 seconds for its reply, capped by the active BOOTSEL, reconnect or console
 deadline. A probe whose reply times out counts as not ready; polling continues
-while its budget has time and uses its normal timeout message when exhausted.
-Other probe refusals keep their normal behavior. Outside polling, a reply timeout
-exits 1 naming the command and reply wait, such as `the device proxy did not
-reply to list within 30.0s`. Early closure and invalid replies name the command.
-If the deadline expires before connecting or sending, the finding names the
-unsent request without blaming the proxy; polling treats it as not ready.
-The transport does not retry requests.
+until the polling deadline and uses its normal timeout message on expiry.
+Other probe refusals keep their normal behaviour. Outside polling, a reply
+timeout exits 1 naming the command and reply wait, such as `the device proxy
+did not reply to list within 30.0s`. Early closure and invalid replies name
+the command. If the deadline expires before connecting or sending, the finding
+names the unsent request without blaming the proxy; polling treats it as not
+ready. The transport does not retry requests.
 
 | cmd | Inputs besides token | Successful reply |
 |---|---|---|
@@ -354,4 +362,5 @@ Official documentation does not establish these behaviours (FW-3).
 | The proxy's dev container check | Docker's label filter and the Dev Containers `devcontainer.local_folder` label are not checked against their documentation |
 
 The Python fake-proxy tests exercise protocol and sequencing only. They do not
-establish these host or hardware properties. No Linux kernel USB routing is used.
+establish these host or hardware properties. No Linux kernel USB routing is
+used.
