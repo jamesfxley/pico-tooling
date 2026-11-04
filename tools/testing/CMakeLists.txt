@@ -1,8 +1,6 @@
-# padcheck's line protocol on the host (AR-14). The header holds no SDK code, so
-# the cases run here rather than on a board.
+# padcheck's line protocol needs no SDK and runs on the host (AR-14).
 
-# The protocol as a header-only target, so the tests and the refusal probes
-# take one include path rather than reaching into padcheck/ by relative path.
+# The tests and compile-fail probes share the protocol's include path.
 add_library(pico_tooling_line_protocol INTERFACE)
 target_include_directories(pico_tooling_line_protocol INTERFACE
     ${PROJECT_SOURCE_DIR}/tools/padcheck)
@@ -13,8 +11,7 @@ target_link_libraries(pico_tooling_line_protocol_tests PRIVATE
     pico_tooling_line_protocol
     GTest::gtest_main
 )
-# In every configuration, not only Debug: a subscript past the line buffer
-# must abort rather than write past it and pass.
+# An out-of-bounds subscript must abort in every configuration.
 target_compile_definitions(pico_tooling_line_protocol_tests PRIVATE
     _GLIBCXX_ASSERTIONS)
 gtest_discover_tests(pico_tooling_line_protocol_tests)

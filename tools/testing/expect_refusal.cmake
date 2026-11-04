@@ -1,7 +1,6 @@
 # Builds one compile-fail probe and passes only if the build fails with the
-# exact expected diagnostic. A probe that fails for any other reason -- a typo,
-# a missing include -- does not count as the refusal it was written for. Both
-# strings are matched as literal text, not as patterns.
+# expected diagnostic. Failure for another reason does not pass the test.
+# Both the diagnostic and call are matched as literal text.
 #
 #   cmake -DBUILD_DIR=<dir> -DTARGET=<target> -DEXPECT_DIAGNOSTIC=<text>
 #         -DEXPECT_CALL=<text> -P expect_refusal.cmake

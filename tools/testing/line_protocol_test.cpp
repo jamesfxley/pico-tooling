@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// BR-1's cases: padcheck refuses in full a command it cannot carry out in full.
-// Built with _GLIBCXX_ASSERTIONS (tools/testing/CMakeLists.txt), so a
-// subscript past the line buffer aborts rather than passing.
+// padcheck rejects a command it cannot carry out in full (BR-1).
+// _GLIBCXX_ASSERTIONS makes an out-of-bounds subscript abort in every build.
 
 #include "line_protocol.hpp"
 
@@ -81,7 +80,6 @@ TEST(LineProtocol, APrefixOutOfRangeOrSignedPinIsInvalid) {
     }
 }
 
-// The shape that let `pads 4 5x 6` probe one pad and answer `# ok`.
 TEST(LineProtocol, ABadFieldIsNotTheEnd) {
     std::string_view text = "4 5x 6";
     std::uint32_t pin = 0;
@@ -91,7 +89,6 @@ TEST(LineProtocol, ABadFieldIsNotTheEnd) {
     EXPECT_EQ(pin, 4U);
 }
 
-// Acting as each pin was read drove `pads 4 5x`'s GP4 before refusing it.
 TEST(LineProtocol, AListIsReadWhole) {
     PinList list;
     std::string_view good = "4 5 6";
@@ -169,8 +166,7 @@ TEST(LineProtocol, ALineEndsAtNewlineAndDropsCarriageReturn) {
     EXPECT_EQ(feed(buffer, "pads"), LineBuffer::Ready::INCOMPLETE);
 }
 
-// Refused whole, not truncated and run: before the buffer refused, a long
-// prefix followed by a real command ran that command.
+// An overlong line cannot run a command in its tail.
 TEST(LineProtocol, AnOverlongLineIsDroppedAndTheNextIsRead) {
     LineBuffer buffer;
     std::string long_line(padcheck::LINE_CAP + OVERRUN, 'a');
