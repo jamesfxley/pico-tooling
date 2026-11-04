@@ -1,8 +1,6 @@
-# The tools the image installs from PyPI, pinned by release and by the SHA-256
-# digests PyPI publishes for their Linux wheels (EN-05.6), so a replaced upload
-# fails the build. ruff's release is the one house/config/ruff.toml requires;
-# pico_tooling.qualify.Qualifier.versions compares the installed version with that pin. uv runs the pytest release pico-tooling's
-# own suite names.
+# PyPI tools are pinned by release and Linux wheel SHA-256. A replaced wheel
+# fails the build. ruff follows house/config/ruff.toml; qualification checks
+# that pin. uv runs the pytest release declared by this repository's suite.
 uv==0.11.28 \
     --hash=sha256:49fe42df9f42056037473f3876adec1615709b57d3470ed39178ff420f3afb9f \
     --hash=sha256:041e4b80bebc58d7142ac9394370cacd73185fd8d066d6675d14707d83408f6d \

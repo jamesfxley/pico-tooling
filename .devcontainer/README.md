@@ -40,6 +40,6 @@ is `ADDR_NO_RANDOMIZE` (262144, 0x40000). An unmodified copy of the upstream fil
 is `tests/data/moby-docker-v29.8.2-seccomp-default.json`, and
 `tests/test_image.py` proves that the one rule is the only difference. The
 SHA-256 of `seccomp.json` is pinned in `pico_tooling/qualify.py` and in
-`tests/test_image.py`. A later engine's default may differ; taking a newer one
+`tests/test_image.py`. A later engine's default might differ; taking a newer one
 means regenerating the file with the one rule, replacing the upstream copy and
 recording both digests in the same change.
