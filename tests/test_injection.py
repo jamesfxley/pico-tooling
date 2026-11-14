@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""A repository value in pico.toml is data and never a git option (AR-1, AR-3)."""
+"""Repository values in pico.toml never act as Git options (AR-1, AR-3)."""
 
 import pytest
 
@@ -42,8 +42,8 @@ def test_git_receives_the_repository_after_an_option_terminator(tmp_path, monkey
     work.mkdir()
     git(work, "init", "--quiet", "--initial-branch=main")
     git(work, "remote", "add", "origin", str(origin))
-    # Without the terminator git would read the value as --upload-pack and run
-    # it against the working directory's own remote.
+    # The terminator prevents Git treating the value as --upload-pack for
+    # the working directory's remote.
     monkeypatch.chdir(work)
     with pytest.raises(ChannelError):
         releases(hostile(marker))

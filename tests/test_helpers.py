@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Host-side refusals and records of the ported firmware helpers (AR-6).
+"""These tests check firmware helper errors and recorded state on the host (AR-6).
 
 Each case configures a tiny project that includes the family module directly.
 A fake SDK stands in where a firmware configure is needed, so no real SDK or

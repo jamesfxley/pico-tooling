@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: MIT
-# Pico family CMake entry points (AR-6). Definition-only; a library reaches this
-# file through its generated cmake/pico_family_bootstrap.cmake, which selects
-# one family context per build before including it.
+# Pico family CMake entry points (AR-6). This file defines helpers without
+# running them. The generated cmake/pico_family_bootstrap.cmake selects one
+# family context per build before including this file.
 include_guard(GLOBAL)
 
 file(STRINGS "${CMAKE_CURRENT_LIST_DIR}/../pyproject.toml" _pico_family_version
@@ -64,8 +64,7 @@ endfunction()
 # This file is the selected context's copy, so its House pin is the build's.
 include("${CMAKE_CURRENT_LIST_DIR}/../house/cxx/cmake/house.cmake")
 
-# Argument checks owned by the family, so this module calls no private House
-# helper (EN-00.8).
+# The family validates its helper arguments without private House calls.
 macro(_pico_family_check_arguments PICO_FAMILY_CA_PREFIX PICO_FAMILY_CA_CALL)
     list(LENGTH ${PICO_FAMILY_CA_PREFIX}_UNPARSED_ARGUMENTS PICO_FAMILY_CA_EXTRA)
     if(PICO_FAMILY_CA_EXTRA GREATER 0)
@@ -161,8 +160,8 @@ macro(_pico_family_import_sdk)
                 "Could not find pico_sdk_init.cmake in '${PICO_SDK_PATH}'")
         endif()
         if(NOT DEFINED PICO_BOARD OR PICO_BOARD STREQUAL "")
-            # BR-6: the SDK reads an environment PICO_BOARD when no variable is
-            # set, so substituting the default would build for another board.
+            # The SDK reads the environment's PICO_BOARD when no variable is
+            # set. A default would select another board (BR-6).
             if(NOT "$ENV{PICO_BOARD}" STREQUAL ""
                AND NOT "$ENV{PICO_BOARD}" STREQUAL "pico2_w")
                 message(FATAL_ERROR
@@ -179,8 +178,8 @@ macro(_pico_family_import_sdk)
     endif()
 endmacro()
 
-# After project(). The top-level project initializes the SDK exactly once;
-# a dependency verifies its parent did. No-op on host.
+# This runs after project(). The top-level project initialises the SDK once.
+# A dependency verifies that its parent did. Host builds need no SDK.
 macro(pico_family_init_sdk PICO_FAMILY_FIRMWARE)
     _pico_family_no_extra_arguments("pico_family_init_sdk" ${ARGN})
     if(${PICO_FAMILY_FIRMWARE})
@@ -189,10 +188,9 @@ macro(pico_family_init_sdk PICO_FAMILY_FIRMWARE)
         if(PROJECT_IS_TOP_LEVEL AND NOT PICO_FAMILY_SDK_INITIALIZED)
             pico_sdk_init()
             set_property(GLOBAL PROPERTY PICO_FAMILY_SDK_INITIALIZED TRUE)
-        # _pico_sdk_inclusion_marker is an SDK internal, not documented API: it
-        # is the one trace pico_sdk_init() leaves (SDK 2.3.0 CMakeLists.txt,
-        # lines 5-6). A later SDK that renames it makes this branch reject a
-        # correctly initialised parent, which fails loudly, never silently.
+        # pico_sdk_init() sets the internal _pico_sdk_inclusion_marker
+        # (SDK 2.3.0 CMakeLists.txt, lines 5-6). Renaming it in the SDK
+        # would make this check reject an initialised parent.
         elseif(NOT PICO_FAMILY_SDK_INITIALIZED
                AND NOT TARGET _pico_sdk_inclusion_marker)
             message(FATAL_ERROR
@@ -302,14 +300,11 @@ macro(pico_family_make_available)
     FetchContent_MakeAvailable(${ARGN})
 endmacro()
 
-# Link SDK libraries to an exported target. The SDK targets exist only after the
-# top level runs pico_sdk_init(), so a plain link would put them in the export and
-# make install() and export() fail. $<BUILD_INTERFACE:> is not enough: it removes
-# the link from the installed interface, but the build-tree export() runs with
-# BUILD_INTERFACE active and fails the same way. $<BUILD_LOCAL_INTERFACE:> applies
-# only within this build system and is excluded from both exports, which is why
-# the family requires CMake 3.26. The recorded links are for the installed package
-# config to re-apply after the consumer initializes the SDK.
+# Link SDK libraries within this build, excluding them from both exports.
+# $<BUILD_INTERFACE:> still exposes SDK targets to build-tree export(), which
+# fails because those targets are not exported. $<BUILD_LOCAL_INTERFACE:>
+# excludes them and requires CMake 3.26. The installed package config restores
+# the recorded links after the consumer initialises its SDK.
 function(pico_family_sdk_link_libraries PICO_FAMILY_SDK_TARGET)
     cmake_parse_arguments(PICO_FAMILY_SDK "" "" "PUBLIC;PRIVATE" ${ARGN})
     if(PICO_FAMILY_SDK_UNPARSED_ARGUMENTS)
@@ -390,7 +385,7 @@ function(pico_family_sdk_config_snippet PICO_FAMILY_SNIPPET_OUT)
     set(${PICO_FAMILY_SNIPPET_OUT} "${PICO_FAMILY_SNIPPET_PATH}" PARENT_SCOPE)
 endfunction()
 
-# One application-owned lwipopts target for the whole image (CXX-10.3).
+# One application-owned lwipopts target serves the whole image.
 macro(pico_family_require_lwipopts_target PICO_FAMILY_LIBRARY)
     cmake_parse_arguments(PICO_FAMILY_LWO "" "FALLBACK" "" ${ARGN})
     _pico_family_check_arguments(PICO_FAMILY_LWO
@@ -426,12 +421,11 @@ macro(pico_family_propagate_install PICO_FAMILY_PREFIX)
     endif()
 endmacro()
 
-# Declare a whole-build sizing profile: a cached string restricted to named
-# values, <PREFIX>_<NAME>. A value outside the set is refused, naming the set,
-# including an empty value (quoted, so it is not silently skipped). One variable
-# has one declaration per build: a second declaration with a different default
-# or value set, from another library, is fatal and names both directories, since
-# one cache entry cannot serve two meanings; an identical one is a no-op.
+# Declare <PREFIX>_<NAME> as a cached string restricted to named values.
+# An invalid value, including an empty one, fails naming the allowed set.
+# A conflicting default or value set in another library fails naming both
+# directories: one cache entry cannot serve two meanings. An identical
+# declaration has no effect.
 function(pico_family_declare_profile PICO_FAMILY_PREFIX)
     cmake_parse_arguments(PICO_FAMILY_PROFILE "" "NAME;DEFAULT;DOC" "VALUES" ${ARGN})
     _pico_family_check_arguments(PICO_FAMILY_PROFILE
@@ -488,18 +482,12 @@ macro(pico_family_declare_probe_option PICO_FAMILY_PREFIX)
         ${${PICO_FAMILY_PREFIX}_ENABLE_FIRMWARE_PROBE_DEFAULT})
 endmacro()
 
-# The libnosys stubs that carry a link-time warning. A probe links no SDK
-# library, so the C library's syscalls have nothing behind them, and a link that
-# warns is a build that warns. Each name is defined as the one stub in
-# cross_probe_stub.cpp, by the linker's --defsym, so no C++ source declares a
-# name the C library fixes. GNU ld manual, "Command-line Options", --defsym=
-# symbol=expression (https://sourceware.org/binutils/docs-2.45/ld/Options.html):
-# "Create a global symbol in the output file, containing the absolute address
-# given by expression", where the expression may be "the name of an existing
-# symbol". The manual states nothing about a symbol that names a function, so
-# what a call through one of these names does at run time is UNCONFIRMED; a
-# probe is never run. _sbrk and _exit stay with nosys, as the former helper left
-# them.
+# These libnosys stubs warn at link time. --defsym binds each name to
+# cross_probe_stub.cpp's stub without a C++ declaration of a C library name.
+# GNU ld documents binding a symbol to an existing symbol's address:
+# https://sourceware.org/binutils/docs-2.45/ld/Options.html (--defsym).
+# Calls through a bound function name are UNCONFIRMED; probes never run.
+# _sbrk and _exit stay with nosys.
 set(_PICO_FAMILY_PROBE_SYSCALLS _chown _close _execve _fork _fstat _getentropy
     _getpid _gettimeofday _isatty _kill _link _lseek _open _read _readlink _stat
     _symlink _times _unlink _wait _write)
@@ -557,13 +545,12 @@ function(_pico_family_source_identity PICO_FAMILY_COMMIT_OUT PICO_FAMILY_DIRTY_O
     set(${PICO_FAMILY_DIRTY_OUT} "${dirty}" PARENT_SCOPE)
 endfunction()
 
-# A device-test image: a firmware executable that runs its cases on the board and
-# reports them as a TAP stream over USB stdio (AR-17). Firmware builds only. The
-# image names itself, its version, its board and the commit of its source, which
-# `device test` repeats in its verdict. dev.py build configures on every call, so
-# the commit is current for each build. A firmware build compiles the SDK's
-# sources into the image, so the package's strict target takes VENDOR_SOURCES
-# there, as for a library's examples, and only SOURCES are compiled with -Werror.
+# A device-test image reports case results and its identity over USB stdio
+# (AR-17). Firmware builds only. The identity names the image, version, board
+# and source commit. dev.py build configures on every call, so the commit is
+# current for each build. A firmware build compiles SDK sources into the image,
+# so the package's strict target takes VENDOR_SOURCES there, as for a library's
+# examples, and only SOURCES are compiled with -Werror.
 function(pico_family_add_device_test PICO_FAMILY_NAME)
     cmake_parse_arguments(PICO_FAMILY_DT "" "PACKAGE" "SOURCES;LIBRARIES" ${ARGN})
     _pico_family_check_arguments(PICO_FAMILY_DT

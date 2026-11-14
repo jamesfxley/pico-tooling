@@ -1,7 +1,6 @@
 # Future work
 
-Work deliberately not done, one entry per deferral, in the form `EN-03.7`
-defines.
+Deferrals follow [EN-03.7](../house/standard/engineering/03-documentation.md).
 
 ## FW-1 — RISC-V cores
 
@@ -13,19 +12,19 @@ toolchain in the image and no CI leg.
 
 ### Why it is not built
 
-No consumer has asked, and the cost is a RISC-V toolchain in the image, a wider
-CI matrix and a review of the Arm-specific assumptions: fences, assertions and
-footprint budgets.
+No consumer has asked, and the cost is a RISC-V toolchain in the image, a
+wider CI matrix and a review of the Arm-specific assumptions: fences,
+assertions and footprint budgets.
 
 ### What would have to be true to build it
 
-A consumer that needs the RISC-V cores. Then the image gains the RISC-V
-toolchain, the CI matrix gains a leg, and each library's Arm-specific code is
-reviewed.
+A consumer needs the RISC-V cores. Supporting them requires a toolchain in the
+image, a CI leg and a review of each library's Arm-specific code.
 
 ### Version cost
 
-Not breaking under `EN-06.1`: it adds a platform.
+Adding a platform is non-breaking under
+[EN-06.1](../house/standard/engineering/06-release-and-versioning.md).
 
 ### Affected repositories
 
@@ -41,17 +40,18 @@ local-device backend exists, and no backend selector.
 
 ### Why it is not built
 
-No developer on Linux or macOS uses the family; these backends are out of scope
-until one does.
+No developer on Linux or macOS uses the family; these backends are out of
+scope until one does.
 
 ### What would have to be true to build it
 
-A developer who works on Linux or macOS and needs device commands there. On
-macOS the TCP path through Docker Desktop's proxy is unconfirmed.
+A developer needs device commands on Linux or macOS. On macOS, the TCP path
+through Docker Desktop's proxy is unconfirmed.
 
 ### Version cost
 
-Not breaking under `EN-06.1`: the Windows proxy route is unchanged.
+The Windows proxy route stays unchanged, so the addition is non-breaking under
+[EN-06.1](../house/standard/engineering/06-release-and-versioning.md).
 
 ### Affected repositories
 
@@ -76,13 +76,14 @@ an observation on one host does not establish them.
 
 ### What would have to be true to build it
 
-A Microsoft, Raspberry Pi, Docker or Dev Containers document that states each
-behaviour, or a design that no longer relies on it.
+Confirmation requires a Microsoft, Raspberry Pi, Docker or Dev Containers
+document for each behaviour, or a design that no longer relies on it.
 
 ### Version cost
 
-Not breaking under `EN-06.1`: it changes documentation, or the host proxy
-without changing the device commands.
+Documentation or host proxy changes that preserve the device commands are
+non-breaking under
+[EN-06.1](../house/standard/engineering/06-release-and-versioning.md).
 
 ### Affected repositories
 

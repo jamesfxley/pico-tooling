@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# Start the installed AR-15 proxy before opening the dev container.
+# Start the installed proxy before opening the dev container (AR-15).
 param(
     [string] $Distro = "pico-dev",
     [string] $ConfigDirectory = (Join-Path $env:APPDATA "pico")

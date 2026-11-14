@@ -4,7 +4,7 @@
 //
 // Run prints an identity line, check() prints one line per case as it
 // finishes, and finish() prints the last line. Nothing is stored beyond two
-// counters and a flag. The identity definitions come from
+// counters and an index. The identity definitions come from
 // pico_family_add_device_test(). A crash or hang prints no last line.
 
 #include <algorithm>
@@ -34,7 +34,7 @@ inline constexpr std::uint32_t IDLE_MS = 1000;
 inline constexpr std::size_t NUMBER_CHARS = 20;  // digits of a 64-bit number
 inline constexpr std::size_t DECIMAL = 10;
 
-/// Wait up to timeout_ms for a host to open the USB console; whether one did.
+/// Wait up to timeout_ms for a USB console and return whether one opened.
 inline bool wait_for_console(std::uint32_t timeout_ms = CONSOLE_WAIT_MS) {
     std::uint32_t remaining = timeout_ms;
     while (!stdio_usb_connected()) {
@@ -97,7 +97,7 @@ inline void separate(bool& more) {
     more = true;
 }
 
-/// Whether `text` is a requirement ID: [A-Z][A-Z0-9]*-[0-9]+.
+/// This accepts requirement IDs matching [A-Z][A-Z0-9]*-[0-9]+.
 inline bool is_requirement(std::string_view text) {
     const auto upper = [](char ch) { return ch >= 'A' && ch <= 'Z'; };
     const auto digit = [](char ch) { return ch >= '0' && ch <= '9'; };
@@ -114,7 +114,7 @@ inline bool is_requirement(std::string_view text) {
 
 }  // namespace detail
 
-/// One device-test run.
+/// A run reports its identity, cases and final verdict.
 class Run {
    public:
     /// Wait for the USB console, then print the identity line.

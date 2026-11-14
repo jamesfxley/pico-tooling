@@ -45,7 +45,7 @@ def text(value, label):
 
 
 def repository(value, label):
-    """Return a repository location; one starting with '-' would act as an option."""
+    """Return a repository location, rejecting a leading option marker."""
     if text(value, label).startswith("-"):
         problem(label, "a repository location must not start with '-'")
     return value
@@ -178,9 +178,9 @@ def validate(data):
 def is_library(root):
     """Return whether root is a library: it holds a family input or pins infra.
 
-    Only the infrastructure repository has neither, so only there are the
-    family gates not applicable. A library whose input is missing must still
-    load it and report that. When the index cannot be read, assume a library.
+    Family gates are inapplicable only when both are absent. A library with
+    missing input must still load it and report the failure. An unreadable
+    index is treated as a library.
     """
     if (root / "pico.toml").is_file():
         return True

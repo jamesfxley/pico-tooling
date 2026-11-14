@@ -1,8 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Which image is flashed; nothing here touches a board.
-
-Pure functions over the paths they are given (AR-12).
-"""
+"""Image selection uses the supplied paths without accessing a board (AR-12)."""
 
 import re
 from pathlib import Path
@@ -34,7 +31,7 @@ def resolve_uf2(build_dir, want=None):
     """Return the image to flash, or None when there is none.
 
     A path to an existing file wins. Several images, named or not, are listed
-    and refused, since picking one would flash a guess.
+    and rejected as ambiguous.
     """
     if want and Path(want).is_file():
         return Path(want)
@@ -50,12 +47,9 @@ def resolve_uf2(build_dir, want=None):
 def check_credentials(uf2):
     """Refuse an image built with an empty Wi-Fi SSID; return a warning or None.
 
-    PICO_<REPO>_WIFI_SSID and _WIFI_PASSWORD are cache variables that default to
-    empty, so a tree never given them yields firmware that boots and never
-    joins: nothing on the network can then reach the board. The cache of the
-    tree that built the image is exact evidence, so this refuses only on
-    positive proof. A cache declaring no such variable belongs to an image that
-    does not use Wi-Fi; an image with no cache above it is warned about.
+    An empty PICO_<REPO>_WIFI_SSID in the build cache identifies firmware that
+    cannot join Wi-Fi. A cache without the variable identifies an image that
+    does not use Wi-Fi. A missing cache produces a warning.
     """
     uf2 = Path(uf2)
     probe = uf2.resolve().parent

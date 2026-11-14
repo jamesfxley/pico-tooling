@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: MIT
-// BR-1's refusal of a dropped status. With PROBE undefined this compiles and is
-// part of every build, so the probe itself is sound; each PROBE value discards
-// one result the line protocol marks [[nodiscard]], which must not compile.
+// This probe compiles in every build with PROBE undefined (BR-1). Each
+// PROBE value discards one [[nodiscard]] result, which must not compile.
 
 #include <cstdint>
 #include <string_view>

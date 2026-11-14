@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Real local infrastructure sources and scaffolded libraries, no network."""
+"""Fixtures use local infrastructure sources and scaffold libraries offline."""
 
 import os
 import re

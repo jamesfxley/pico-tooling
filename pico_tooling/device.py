@@ -65,7 +65,7 @@ def standard_input():
 
 @dataclass
 class Host:
-    """Replaceable process inputs; no direct device access."""
+    """Tests can replace these process inputs without accessing a device."""
 
     cwd: Path = field(default_factory=Path.cwd)
     environ: Mapping = field(default_factory=lambda: dict(os.environ))
@@ -90,7 +90,7 @@ def write_output(chunk):
 
 @contextlib.contextmanager
 def locked(serial, environ):
-    """Hold the existing per-user advisory lock for the whole board operation."""
+    """Hold the per-user advisory lock for the whole board operation."""
     base = Path(environ.get("XDG_RUNTIME_DIR", ""))
     if not base.is_absolute():
         base = Path(tempfile.gettempdir()) / f"pico-{os.getuid()}"
@@ -119,11 +119,9 @@ class TerminationError(Exception):
     """The process was asked to terminate."""
 
 
-# -- choosing the backend ------------------------------------------------------
-
 
 def choose(host):
-    """Use the host proxy at use time, or explain the one-time setup."""
+    """Connect to the host proxy when needed, or report the required setup."""
     found = find_connection(host.cwd)
     if found is None:
         raise RefusalError(CANNOT_TRY, f"no device proxy connection file: {SETUP}")
@@ -131,8 +129,6 @@ def choose(host):
     proxy.list()
     return proxy
 
-
-# -- finding the board ---------------------------------------------------------
 
 
 def board_of(backend, serial):
@@ -168,7 +164,7 @@ def pick_port(serial, ports, wanted):
 
 
 def wait_for(host, seconds, probe, backend):
-    """Poll within the budget, treating a proxy reply timeout as not yet ready."""
+    """Poll until the deadline, treating a proxy reply timeout as not yet ready."""
     end = host.clock() + seconds
     previous = backend.deadline
     backend.deadline = end if previous is None else min(end, previous)
@@ -186,11 +182,12 @@ def wait_for(host, seconds, probe, backend):
         backend.deadline = previous
 
 
-# -- list ----------------------------------------------------------------------
-
 
 def command_list(host, args):
-    """Print the boards; this reads and authorizes nothing."""
+    """Print enumeration data without opening a serial port.
+
+    No board action is authorised.
+    """
     rows = choose(host).list()
     if args.json:
         host.say(json.dumps([vars(row) for row in rows], indent=2))
@@ -207,8 +204,6 @@ def command_list(host, args):
         host.say("no Raspberry Pi board found")
     return OK
 
-
-# -- bootsel and flash ---------------------------------------------------------
 
 
 def reset_into_bootsel(host, backend, serial, wanted):
@@ -277,7 +272,7 @@ def repository_root(host):
 
 
 def find_image(host, args):
-    """Return the .uf2 to flash and its warning; never builds."""
+    """Return the .uf2 to flash and its warning without building."""
     want = args.image
     if want and (host.cwd / want).is_file():
         want = str((host.cwd / want).resolve())
@@ -345,8 +340,6 @@ def command_flash(host, args):
     return OK
 
 
-# -- console -------------------------------------------------------------------
-
 
 @contextlib.contextmanager
 def terminating():
@@ -380,7 +373,7 @@ def check_watch(args):
 
 
 class Watch:
-    """The agent mode's state: a pattern, a deadline and a log of the output."""
+    """Agent mode keeps a pattern, a deadline and an output log."""
 
     def __init__(self, host, args, log):
         self.pattern = check_watch(args)
@@ -447,7 +440,7 @@ def timed_out(host, args):
 
 
 def console(host, backend, args, forward=None, started=False):
-    """Hold a console on the named board across reboots; return a status."""
+    """Keep a console on the named board across reboots and return its status."""
     with contextlib.ExitStack() as stack:
         log = stack.enter_context(Path(args.log).open("ab")) if args.log else None
         watch = Watch(host, args, log)
@@ -503,8 +496,6 @@ def command_console(host, args):
         host.warn("==> Holding a serial console session open (Ctrl+C to quit).")
         return console(host, backend, args, forward_of(host, args))
 
-
-# -- the command line ----------------------------------------------------------
 
 
 def add_to(commands):

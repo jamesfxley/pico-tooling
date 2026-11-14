@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-# AR-15: Windows PowerShell 5.1; run unelevated with WSL already installed.
+# This needs Windows PowerShell 5.1; run unelevated with WSL installed (AR-15).
 param(
     [ValidatePattern('^[a-zA-Z0-9][a-zA-Z0-9_-]*$')]
     [string] $Distro = "pico-dev",

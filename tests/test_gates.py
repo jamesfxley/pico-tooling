@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Owner boundary, repairable outputs and unavailable inputs (AR-1, AR-2)."""
+"""These tests check ownership, repairable output and unavailable input (AR-1, AR-2)."""
 
 import pytest
 

@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Exit statuses of the device command group and the refusal that carries one."""
+"""Device errors carry an exit status and a message."""
 
 OK = 0
 FAILED = 1  # tried and did not succeed

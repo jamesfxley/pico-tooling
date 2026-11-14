@@ -1,8 +1,7 @@
 // SPDX-License-Identifier: MIT
-// AR-16's cases: a device-test image's output, over declarations of the SDK
-// calls it makes. Built three times (tools/testing/CMakeLists.txt), once per
-// kind of source the image can name: SOURCE_CLEAN, SOURCE_DIRTY or
-// SOURCE_UNKNOWN.
+// Device-test output is checked against SDK declarations on the host (AR-16).
+// tools/testing/CMakeLists.txt builds these cases for SOURCE_CLEAN,
+// SOURCE_DIRTY and SOURCE_UNKNOWN.
 
 #include "pico_family/device_test.hpp"
 
@@ -34,7 +33,6 @@ struct Board {
     Lines lines;
 };
 
-// The fake board's state, made on first use so no global is mutable.
 Board& board() {
     static Board state;
     return state;

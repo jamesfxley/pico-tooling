@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Configure real synthetic libraries through one family context (AR-6, AR-17)."""
+"""Configure synthetic libraries through the pinned family context (AR-6, AR-17)."""
 
 import os
 import re
@@ -157,7 +157,7 @@ def advance(infra_source, branch, summary, *, version=None, addition=""):
 
 
 def product(root, infra_source, name, layout=None, **dependencies):
-    """Scaffold a synthetic product; layout may set template, version and infra."""
+    """Scaffold a synthetic product; layout can set template, version and infra."""
     layout = {"template": PRODUCT, "version": "1.0.0", "infra": None, **(layout or {})}
     infra = layout["infra"]
     scaffold(infra_source, root, name=name.replace("_", "-"))
@@ -190,7 +190,7 @@ def repos(tmp_path_factory):
     incompatible_version = advance(
         infra, "incompatible", "tooling: start version 0.2.0", version="0.2.0",
     )
-    # A later patch that adds a helper (probe E of the planner review).
+    # This patch release provides the helper the fixture calls.
     patch_version = advance(
         infra, "minor", "tooling: start version 0.1.1", version="0.1.1",
         addition=NEW_HELPER,
@@ -463,8 +463,8 @@ def test_a_fetchcontent_override_of_the_infrastructure_is_reported(repos):
 
 
 def test_the_family_module_calls_no_private_house_helper():
-    # House's underscore-prefixed CMake helpers are private (EN-00.8), and no
-    # gate parses CMake, so only this test notices a dependency on one.
+    # House's underscore-prefixed CMake helpers are private; no gate parses
+    # CMake to check their use.
     text = (ROOT / "cmake/pico_family.cmake").read_text(encoding="utf-8")
     assert "_house_" not in text
 
@@ -549,8 +549,7 @@ def test_a_real_sdk_firmware_configure_of_two_libraries_shares_one_context(repos
 
 
 def test_a_selected_version_older_than_the_requester_is_fatal(repos):
-    # Probe E: without a minimum-version rule the older context is reused, and the build
-    # dies later on "Unknown CMake command pico_family_new_helper".
+    # The fixture calls a helper absent from the older context.
     root = application(repos, "app-old-context", lib1=repos["caller"])
     done = configure(root)
     text = " ".join((done.stdout + done.stderr).split())
@@ -742,7 +741,7 @@ def test_a_real_sdk_device_test_marks_a_dirty_source(repos):
      ("1.3.0", "2.0.0", False), ("0.2.0", "0.1.0", False)],
 )
 def test_release_compatibility_boundaries(tmp_path, selected, requested, accepted):
-    # AR-6: check both directions, including a newer incompatible 0.x minor.
+    # Check both directions, including a newer incompatible 0.x minor (AR-6).
     root = tmp_path / "context"
     root.mkdir()
     (root / "CMakeLists.txt").write_text(

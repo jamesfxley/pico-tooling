@@ -1,13 +1,13 @@
 # SPDX-License-Identifier: MIT
-"""Gate: static RAM and flash of a firmware image stay within budget (AR-11).
+"""The gate checks static RAM and flash against image budgets (AR-11).
 
 Each [[footprint]] table in pico.toml names one image. Static RAM is
 allocated sections except read-only load images at their load address, heap
 and stack reservations; flash is every loaded section. Owned flash counts
 symbols from files under owned_prefix that git tracks or does not
 ignore, so the SDK or a sibling fetched inside the checkout is never the
-library's. An image attributing nothing to that prefix was built without debug
-information and cannot satisfy an owned budget.
+library's. An image attributing nothing to that prefix cannot satisfy an owned
+budget.
 
 A missing image, an image older than an owned source, a missing binutils tool
 and an unreadable table are CANNOT_RUN, never a pass.

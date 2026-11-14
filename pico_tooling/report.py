@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Read-only family report: infrastructure pins (AR-5).
+"""The read-only report lists committed library infrastructure pins (AR-5).
 
 Inputs name each library explicitly as name=local-repository[@ref];
 a URL is refused and no library list is built in.

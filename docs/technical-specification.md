@@ -55,7 +55,7 @@ guide gives each signature, behaviour and refusal, and the helper tests exercise
 them without an SDK. The generated bootstrap selects the context through the
 private `_pico_family_context`, which no library calls. Firmware builds default
 only from the `PICO_SDK_PATH` CMake variable; the top level imports and
-initializes the SDK once; a dependency takes its parent's SDK and board. The top
+initialises the SDK once; a dependency takes its parent's SDK and board. The top
 level accepts any board the SDK defines, and `PLATFORM` and `CYW43` refuse a
 board the library cannot run on.
 Dependencies are declared before any is populated, the first declaration wins, a
@@ -302,7 +302,7 @@ allowed or matched by a load.
 
 - `test_gates.py`:
   `test_missing_edited_and_unindexed_bootstrap`;
-  family-files rejects missing/edited/unindexed bootstrap and accepts sync
+  family-files rejects a missing, edited or unindexed bootstrap and accepts sync
   repair.
 - `test_gates.py`:
   `test_a_library_without_its_input_cannot_run_but_the_infrastructure_skips`;
@@ -345,7 +345,7 @@ allowed or matched by a load.
 
 - `test_cmake.py`:
   `test_both_orders_share_one_context_and_one_dependency`;
-  both declaration orders reuse one context/dependency.
+  both declaration orders reuse one context and dependency.
 - `test_cmake.py`:
   `test_overrides_are_reported_and_siblings_ignored`;
   overrides report their state and sibling checkouts do not substitute pins.
@@ -354,7 +354,7 @@ allowed or matched by a load.
   versions obey major/minor compatibility.
 - `test_cmake.py`:
   `test_firmware_imports_and_initializes_the_sdk_once`;
-  SDK import and initialization occur once.
+  SDK import and initialisation occur once.
 - `test_cmake.py`:
   `test_the_family_module_calls_no_private_house_helper`;
   the helper uses no private House call.
@@ -410,7 +410,7 @@ allowed or matched by a load.
   `test_sections_follow_placement_and_flags_not_a_name_list`,
   `test_generic_sections_have_nonzero_flash_and_ram`,
   `test_all_noload_sections_cannot_run`;
-  flags and VMA/LMA include initialized data, vectors and uninitialized
+  flags and VMA/LMA include initialised data, vectors and uninitialised
   allocations at Pico and generic addresses; zero loaded bytes is unavailable.
 - `test_embedded_gates.py`:
   `test_an_unavailable_image_hides_no_other_failure`;
@@ -429,7 +429,7 @@ allowed or matched by a load.
 
 - `test_device_proxy.py`:
   `test_slow_list_reply_uses_reply_wait_instead_of_connect_timeout`;
-  a modeled 12-second list reply succeeds beyond the connect bound.
+  a modelled 12-second list reply succeeds beyond the connect bound.
 - `test_device_proxy.py`:
   `test_reply_timeout_outside_poll_names_request_and_wait`;
   a reply timeout exits 1 naming the request and wait without retrying.
@@ -438,7 +438,7 @@ allowed or matched by a load.
   polling continues after a reply timeout and flashing completes.
 - `test_device_proxy.py`:
   `test_bootsel_probe_reply_wait_is_capped_by_loop_budget`;
-  a probe cannot outwait BOOTSEL's budget and the budget finding applies.
+  a probe cannot exceed the BOOTSEL wait limit and reports that timeout.
 - `test_device_proxy.py`:
   `test_invalid_or_closed_reply_names_request`;
   invalid and closed reply findings name the request without its token.
@@ -454,7 +454,7 @@ allowed or matched by a load.
 
 - `test_device_proxy.py`:
   `test_flash_resets_waits_loads_and_reconnects`;
-  the fake host records the required reset/load/reconnect sequence.
+  the fake host records the required reset, load and reconnect sequence.
 - `test_device_proxy.py`:
   `test_dry_run_does_not_reset_or_load`;
   dry-run makes no device request.
@@ -463,7 +463,7 @@ allowed or matched by a load.
   locks refuse contention before reset.
 - `test_device_images.py`:
   `test_several_images_are_listed_not_guessed`;
-  ambiguous images are listed rather than guessed.
+  ambiguous images are listed without guessing.
 
 ### AR-13 verification
 
@@ -506,7 +506,7 @@ refusal against its compiler diagnostic and the call's own text.
   the client uses the connection file endpoint.
 - `test_device_proxy.py`:
   `test_proxy_connect_failure_names_endpoint_and_launcher_once`;
-  refusal/timeout names the endpoint and launcher without retry.
+  refusal or timeout names the endpoint and launcher without retry.
 
 ### AR-16 verification
 

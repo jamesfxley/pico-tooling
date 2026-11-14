@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
-# Install the AR-15 proxy and launcher into the current user's private config.
+# Install the proxy and launcher into the current user's private config (AR-15).
 # Setup stops an old copy and removes its old logon shortcut, but starts no proxy.
-# Only adding/removing the local-IPv4-subnet firewall rule requests elevation, once
-# per change. -NoFirewall skips that step for CI/machines without the distro.
+# Only adding or removing the local-IPv4-subnet firewall rule requests
+# elevation, once per change. -NoFirewall skips it for CI or without the distro.
 # -Remove preserves configuration/devices.toml and removes the installed copies,
 # connection files and firewall rule. No software or board serial is installed.
 # Exit status: 0 done; 2 pre-flight/firewall failed.
@@ -45,7 +45,6 @@ function Read-Config {
     return Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 }
 
-# Pre-flight.
 # Inspect before any write, ACL change, shortcut change or process stop.
 if (Test-Path -LiteralPath $ConfigDirectory) {
     if (-not (Test-Path -LiteralPath $ConfigDirectory -PathType Container)) {
@@ -132,7 +131,7 @@ if ($Remove) {
     exit 0
 }
 
-# The configuration: what was set before, plus what this run names.
+# Configuration combines existing values with this run's inputs.
 $existing = Read-Config
 $folders = @()
 if ($null -ne $existing) { $folders += @($existing.workspaces) }

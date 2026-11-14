@@ -1,8 +1,8 @@
 # SPDX-License-Identifier: MIT
-"""Reach the public API of the House this checkout pins, from a command line.
+"""Import the pinned House public API for standalone commands.
 
-`dev.py` puts the pinned platform on the import path before a gate runs. A
-command run as `python3 -m pico_tooling` has no such step, so it asks here.
+`dev.py` adds House to the import path before running a gate. Standalone
+`python3 -m pico_tooling` commands use this module to find House.
 """
 
 import importlib

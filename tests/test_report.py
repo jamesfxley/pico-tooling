@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Report committed infrastructure pins without product graph machinery (AR-5)."""
+"""These tests check reports of committed infrastructure pins (AR-5)."""
 
 import pytest
 

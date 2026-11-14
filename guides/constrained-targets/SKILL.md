@@ -5,24 +5,23 @@ description: "Read before making a claim about on-device behaviour, static footp
 
 # Constrained targets
 
-The rules are [CXX-11](../../house/standard/cxx/11-constrained-targets.md). This
-is how to work under them in a family library. It pairs with
-[cxx-standard](../../house/guides/cxx-standard/SKILL.md).
+This guide applies
+[CXX-11](../../house/standard/cxx/11-constrained-targets.md) to family
+libraries alongside [cxx-standard](../../house/guides/cxx-standard/SKILL.md).
+The [family README](../../README.md) defines the shared terms.
 
 ## The two pools
 
 Storage divides by lifetime, and the pools are budgeted and gated separately:
 
-- **Static RAM** sums `ALLOC` sections except `LOAD, READONLY` sections
-  with equal VMA and LMA, `.heap`, and names starting with `.stack`. It is fixed
-  at link time; the
-  footprint gate below measures it.
-- **Initialisation-time heap** is allocated once before the start call. It is
+- Static RAM is fixed at link time. The
+  [footprint gate](../../docs/usage-guide.md#embedded-gates) measures it.
+- Initialisation-time heap is allocated once before the start call. It is
   permitted and budgeted; what is forbidden is allocation on the steady-state
   paths afterwards.
 
-Conflating them makes both ungateable. State each budget as the expression that
-produces it, so a configuration change cannot leave the budget behind:
+State each budget as an expression so it stays valid when the configuration
+changes:
 
 ```text
 per-slot storage = max_headers × (name_capacity + value_capacity)
@@ -34,81 +33,56 @@ total            = per-slot × max_connections
 
 Use two independent checks, because each misses what the other catches:
 
-1. **A counter.** Override global `operator new` and `operator delete`, reset
+1. Override global `operator new` and `operator delete`, reset
    after the start call, and assert zero at the end of the suite. It catches any
    allocation on a path a test exercised.
-2. **A heap watermark on the device.** Sample the heap high-water mark under
-  sustained load and assert that it stops growing. It catches the paths tests do
-  not reach, and tells bounded growth from a leak: a design that hands ownership
-  of a caller-supplied buffer to the library grows to a bound and then flattens,
-   which is correct and looks like a leak until the tail is flat.
+2. Sample the device heap high-water mark under sustained load and assert
+   that it stops growing. It catches paths tests do not reach. A library
+   taking ownership of caller-supplied buffers can grow to a bound before
+   stabilising; that growth is not a leak.
 
-The bound is arithmetic, not an observation: `max_connections ×
-max_buffered_body`. Assert that the measured saturation sits inside it.
+The bound is calculated as `max_connections × max_buffered_body`. Assert that
+measured saturation stays within it.
 
-The symbols gate adds a static check: the library's own objects must leave
-undefined none of the heap symbols (`c-heap` for the allocator, deallocator and
-operator new/delete; `c-heap-alloc` for the allocating subset), the soft-float
-helpers (`soft-float`), and an image must not define the allocating formatter
-routines (`allocating-formatter`).
+The symbols gate adds a static check. The library's own objects must leave no
+heap symbols undefined (`c-heap` covers allocation and deallocation;
+`c-heap-alloc` covers allocation only), nor any soft-float helpers
+(`soft-float`). An image must not define allocating formatter routines
+(`allocating-formatter`).
 
 ## Footprint and symbols gates
 
 A library declares each image and object set in `pico.toml`. Its family
-reference
-supplies the gates and the `firmware` gate group (`docs/usage-guide.md`,
-"Embedded gates"):
+reference supplies the gates in the `firmware` group. The [usage
+guide](../../docs/usage-guide.md#embedded-gates) describes the tables.
 
-```toml
-[[footprint]]
-name = "bench"
-elf = "build-firmware/examples/bench/app.elf"
-ram_kib = 20           # static RAM budget
-flash_kib = 128        # optional
-owned_prefix = "src"   # optional, with owned_kib: flash attributed to this tree
-owned_kib = 48
+`python3 dev.py gate footprint` and `gate symbols` use `arm-none-eabi-objdump`
+and `arm-none-eabi-nm`; the tools must be on `PATH`. The gates fail over a
+stated budget or on a forbidden symbol and name the image and figure. Missing
+images, object directories or tools report `CANNOT_RUN`. So do stale builds
+and images without debug information needed for an owned-flash budget. Rebuild
+stale inputs first. Find buffers behind a footprint increase with
+`arm-none-eabi-nm --size-sort --print-size`.
 
-[[symbols]]
-name = "log probe"
-mode = "objects"       # or "image"
-path = "build-firmware/tests/firmware/CMakeFiles/probe.dir"
-sets = ["c-heap-alloc"]
-```
-
-`python3 dev.py gate footprint` and `gate symbols` read the linked image with
-`arm-none-eabi-objdump` and `arm-none-eabi-nm` (they must be on `PATH`), fail
-over a
-stated budget or on a forbidden symbol, and name the image and the figure. They
-report **cannot run**, never a pass, when the image or object directory is
-missing, when it is older than an owned source (rebuild first), when the tools
-are
-missing, or when an image built without debug information cannot satisfy an
-owned
-budget. A footprint that jumped is almost always one buffer: find it with
-`arm-none-eabi-nm --size-sort --print-size` on the image.
-
-Flash sums every `LOAD` section. Static RAM sums `ALLOC` sections except
-`LOAD, READONLY` sections with equal VMA and LMA, `.heap` and `.stack*`.
-The VMA/LMA comparison retains RAM-resident code flagged `READONLY` by the SDK.
-Owned flash uses source-attributed code and read-only symbols. Zero loaded
-bytes makes an image unavailable.
+[AR-11](../../docs/technical-specification.md) defines the footprint
+calculations. The address comparison retains RAM-resident code flagged
+`READONLY` by the SDK.
 
 The `c-heap` set matches whole symbol names: `malloc`, `calloc`, `realloc`,
 `free`, their newlib `_malloc_r`, `_calloc_r`, `_realloc_r`, `_free_r` forms,
-and mangled operator new/delete entries (including size, alignment and
-nothrow forms). `c-heap-alloc` omits deallocation entries. An unrelated name
-such as `freeaddrinfo` does not match either set.
+and mangled operator new/delete entries (including size, alignment and nothrow
+forms). `c-heap-alloc` omits deallocation entries. An unrelated name such as
+`freeaddrinfo` does not match either set.
 
-Gate each supported configuration, state the gate in the specification, and keep
-the measured value in the run record (`EN-03.2`).
+Gate each supported configuration, state the gate in the specification, and
+keep the measured value in the run record
+([EN-03.2](../../house/standard/engineering/03-documentation.md)).
 
 ## Sizing profiles
 
-Every static size derives from a named compile-time profile. A new knob needs a
-`static_assert` binding it to whatever it must agree with (`CXX-11.2`). Two
-values
-that must match and live in different files will diverge, and the symptom is a
-buffer sized for one window while the stack advertises another:
+Static sizes and their binding assertions follow
+[CXX-11.2](../../house/standard/cxx/11-constrained-targets.md). For example, a
+receive buffer smaller than the advertised window loses bytes:
 
 ```cpp
 static_assert(Profile::rx_capacity >= ADVERTISED_WINDOW,
@@ -116,96 +90,80 @@ static_assert(Profile::rx_capacity >= ADVERTISED_WINDOW,
               "bytes are dropped");
 ```
 
-A whole-build profile is declared with `pico_family_declare_profile`; one
-variable
-has one declaration and one set of values, and a second library declaring it
-differently is fatal.
+Whole-build profiles use
+[`pico_family_declare_profile`](../../docs/usage-guide.md#cmake-entry-points).
 
-**The propagation trap.** A profile macro a consumer can observe must be a
-`PUBLIC` compile definition on the target that owns the profile header
-(`CXX-10.3`). A directory-scoped `add_compile_definitions` reaches only the
-defining repository's targets, so a consumer compiles the header without it,
-disagrees about a structure's size, and gets stack corruption at a point
-unrelated
-to the cause. Verify rather than assume: configure a consumer with a non-default
-profile and search its `compile_commands.json` for the definition, per
-translation
-unit.
+A profile macro a consumer can observe must be a `PUBLIC` compile definition
+on the target that owns the profile header
+([CXX-10.3](../../house/standard/cxx/10-headers-and-abi.md)). A missing macro
+can make the consumer and library disagree about a structure's size, causing
+stack corruption. Configure a consumer with a non-default profile and search
+its `compile_commands.json` for the definition in each translation unit.
 
 ## The cross tree
 
-A cross build has its own build directory, because it is a different toolchain.
-It needs `PICO_SDK_PATH` as a CMake variable, and the board is any board the
-SDK defines that the library's `PLATFORM` and `CYW43` requirements accept. The
-compile database merges the trees so the editor resolves
-cross-only
-sources;
+A cross build has its own build directory, because it is a different
+toolchain. The [usage
+guide](../../docs/usage-guide.md#tree-profiles-and-the-dev-container) covers
+SDK and board selection. The merged compile database lets the editor resolve
+cross-only sources.
 [cxx-build-and-toolchain](../../house/guides/cxx-build-and-toolchain/SKILL.md)
-covers the linting mechanics, which is where most of the friction is, and
-`docs/build.md` covers the family's commands.
+covers linting, and the [build guide](../../docs/build.md) covers family
+commands.
 
 ## Hardware seams
 
-One interface per device, a fake in the testing module, and only the adapter
-touches registers (`CXX-11.7`).
+Hardware interfaces and fakes follow
+[CXX-11.7](../../house/standard/cxx/11-constrained-targets.md).
 
-The contract, not just the signature, is what the fake must implement. The
-classic
-failure: a read function that returns an error for an idle or absent bus where
-the
-caller's drain loop expects success. The loop wedges or raises a spurious fault,
-and no host test shows it because the fake was written to the signature.
+The fake's contract is part of that rule. A read function returning an error
+for an idle or absent bus where the caller expects success can hang or fault a
+drain loop. A fake written only to the signature misses the defect.
 
-Where an interrupt publishes a value wider than the platform's atomic word, use
-a
-seqlock (`CXX-08.4`). A 64-bit timestamp written as two 32-bit stores can be
-read
-between them, producing a time that never happened.
+Where an interrupt publishes a value wider than the platform's atomic word,
+use a seqlock, a counter that lets readers detect an interrupted update
+(`CXX-08.4`). A 64-bit timestamp written as two 32-bit stores can be read
+between them, producing a time that never existed.
 
 Where a level-triggered signal can be missed or coalesced, consult the live
-level
-as well as the latched edge, and count the fallback reads: a read served by the
-level fallback has no fresh edge and anchors its data to an earlier timestamp,
-which is a real accuracy difference worth observing rather than hiding.
+level as well as the latched edge, and count fallback reads. A fallback read
+has no fresh edge, so its data uses an earlier timestamp. Counting these reads
+exposes the loss of timestamp accuracy.
 
 ## Claims about on-device behaviour
 
-Never state that something is hardware-validated without a device run
-(`EN-06.6`). The pre-merge minimum without hardware is host tests under every
-configuration, a cross compile and the footprint gate. That is not validation.
+Hardware-validation claims follow
+[EN-06.6](../../house/standard/engineering/06-release-and-versioning.md).
+Without hardware, host tests under every configuration, a cross compile and
+the footprint gate provide preliminary evidence.
+[EN-06.9](../../house/standard/engineering/06-release-and-versioning.md) governs
+device tests before merge.
 
 When measuring on a device, bracket a sweep with a health check and discard
 degraded data: a radio link, thermal state or power-saving mode can move
-throughput several-fold and looks exactly like a regression. Functional results
-from a degraded run stay valid; performance numbers do not. Record the
-conditions
-with every measurement (`EN-06.7`), build type included: a debug build is
-materially slower than a release build.
+throughput several-fold and looks exactly like a regression. Functional
+results from a degraded run stay valid; performance numbers do not.
+Measurement conditions follow
+[EN-06.7](../../house/standard/engineering/06-release-and-versioning.md).
+Build type matters because debug and release builds differ in speed.
 
 ## What makes a run evidence
 
-A capture is not a measurement until it carries its conditions (`EN-06.7`) and
-can
-be falsified:
+A measurement needs conditions (`EN-06.7`) and a way to detect a wrong result:
 
-- **A conditions table**: date, board, firmware version, toolchain and SDK,
-  dependency versions, build type and network. A record inherits nothing from
-  the
-  record above it.
-- **An independent cross-check.** A value inside a plausibility window can still
-  be wrong. Compare against an instrument the device does not control, such as
-  the
-  capturing host's own clock, and not only against the window.
-- **A live negative control in the same run**, wherever the measurement is a
-  count. A counter that reports zero and a counter that is dead produce the same
-  output. Where the control cannot fire, such as a lock that links to an empty
+- A conditions table includes date, board, firmware version, toolchain and
+  SDK, dependency versions, build type and network. Each record carries its
+  own conditions.
+- An independent cross-check is needed. A value inside a plausibility window
+  can still be wrong. Compare against an instrument the device does not control, such as
+  the capturing host's clock, as well as the plausibility window.
+- A count needs a live negative control in the same run. A counter that
+  reports zero and a dead counter produce the same output. Where the control cannot fire, such as a lock that links to an empty
   function, the rig cannot be built honestly and the question needs a different
   instrument.
-- **A re-run after the code changes.** A run record backing a requirement is
-stale
-  the moment the code it exercises moves.
+- A run record backing a requirement becomes stale when the code it
+  exercises changes.
 
-Arm the capture before the device is reset or reflashed, where the tooling
-allows
-it, because diagnostic output lands at start-up, often before a console attached
-afterwards can see it. `device.md` says how the device commands bear on this.
+Arm the capture before reset or reflash where the tooling allows it.
+Diagnostic output often arrives before a console can attach. The [device
+guide](../device.md#watch-the-console) explains capture with device commands.

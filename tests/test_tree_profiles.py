@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""The shared House tree profiles and the files sync renders for them (AR-2)."""
+"""These tests check House tree profiles and their generated files (AR-2)."""
 
 import json
 import subprocess
@@ -15,7 +15,7 @@ SEARCH = (
 
 
 class Compiler:
-    """Records the compiler invocations and answers with a fixed search list."""
+    """The fake compiler records invocations and returns a fixed search list."""
 
     def __init__(self, stderr=SEARCH):
         self.calls = []
