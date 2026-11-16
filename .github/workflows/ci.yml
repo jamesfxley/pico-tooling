@@ -46,7 +46,7 @@
       "fail-fast": false
       "matrix":
         "sanitize":
-          - "ON"
+          - "address"
     "env":
       "HOUSE_MATRIX_SANITIZE": "${{ matrix.sanitize }}"
   "check_build":
@@ -63,7 +63,7 @@
       "fail-fast": false
       "matrix":
         "sanitize":
-          - "ON"
+          - "address"
     "env":
       "HOUSE_MATRIX_SANITIZE": "${{ matrix.sanitize }}"
   "check_consumer":

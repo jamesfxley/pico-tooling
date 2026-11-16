@@ -136,7 +136,7 @@ def library(tmp_path, infra_source):
 def dev(root, *args):
     return run(
         sys.executable, "dev.py", *args, cwd=root, check=False,
-        env={"PICO_SDK_PATH": "", "HOUSE_MATRIX_SANITIZE": "ON"},
+        env={"PICO_SDK_PATH": "", "HOUSE_MATRIX_SANITIZE": "address"},
     )
 
 
