@@ -33,7 +33,7 @@ def test_real_family_layers_work_without_adapters(tmp_path, infra_source):
     loaded = run(
         sys.executable, "-c", script, cwd=root,
         env={"PYTHONPATH": str(root / "infra/house"),
-             "HOUSE_MATRIX_SANITIZE": "ON", "PICO_SDK_PATH": "/sdk"},
+             "HOUSE_MATRIX_SANITIZE": "address", "PICO_SDK_PATH": "/sdk"},
     )
     result = json.loads(loaded.stdout)
     assert set(result["gates"]) >= {

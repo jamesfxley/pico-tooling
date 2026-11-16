@@ -39,11 +39,11 @@ schedule = "weekly"
 
 [[ci.require]]
 group = "build"
-matrix = { build_type = ["Debug", "Release"], sanitize = ["ON"] }
+matrix = { build_type = ["Debug", "Release"], sanitize = ["address", "thread"] }
 
 [[ci.require]]
 group = "lint"
-matrix = { sanitize = ["ON"] }
+matrix = { sanitize = ["address", "thread"] }
 prepare = ["python3 dev.py build"]
 
 [[ci.require]]

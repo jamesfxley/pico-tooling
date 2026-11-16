@@ -11,7 +11,7 @@ helper signatures. Include `cmake/pico_family_bootstrap.cmake` before
 Run `python3 dev.py build` to configure, clean-build and test enabled trees.
 Firmware uses `PICO_SDK_PATH` and the `board` matrix axis. House's built-in
 `sanitize` tree uses `house_cxx_enable_sanitizers` and
-`HOUSE_MATRIX_SANITIZE=ON`. Per-tree gate names include `build:firmware` and
+`HOUSE_MATRIX_SANITIZE=address` or `thread`. Per-tree gate names include `build:firmware` and
 `lint:sanitize`. Each CI group runs independently. The `lint` group prepares
 with `dev.py build`; `firmware` prepares with `dev.py build` and `dev.py gate
 build-warnings`.

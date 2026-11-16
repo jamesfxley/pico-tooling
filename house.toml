@@ -38,11 +38,11 @@ schedule = "weekly"
 
 [[ci.require]]
 group = "build"
-matrix = { sanitize = ["ON"] }
+matrix = { sanitize = ["address"] }
 
 [[ci.require]]
 group = "lint"
-matrix = { sanitize = ["ON"] }
+matrix = { sanitize = ["address"] }
 prepare = ["python3 dev.py build"]
 
 [sync.overlay.devcontainer]
