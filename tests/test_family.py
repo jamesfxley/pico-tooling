@@ -124,3 +124,16 @@ def test_family_container_user_survives_repository_job_overrides(library):
     assert data["jobs"]["check_lint"]["container"]["options"] == (
         "--security-opt seccomp=unconfined --user 0"
     )
+
+
+def test_family_sanitizer_jobs_run_without_a_seccomp_filter(library):
+    # Only the build and lint groups, which run the sanitisers, drop the
+    # seccomp filter (AR-2).
+    jobs = workflow_model(library)["jobs"]
+    sanitizer_jobs = {"check_build", "check_lint"}
+    assert sanitizer_jobs <= jobs.keys()
+    for name, job in jobs.items():
+        expected = "--user 0"
+        if name in sanitizer_jobs:
+            expected = "--security-opt seccomp=unconfined --user 0"
+        assert job["container"]["options"] == expected, name

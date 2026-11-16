@@ -13,7 +13,11 @@ gates, the firmware tree, CI preparation and devcontainer overlay from
 family.toml. family.toml names the CI job image: the published family image,
 pinned by registry manifest digest. Every library job container runs as root
 (`--user 0`), placed after any container options that the repository's own
-require rows declare.
+require rows declare. The family's build and lint job containers run without a
+seccomp filter: ThreadSanitizer needs `personality(ADDR_NO_RANDOMIZE)`, which
+Docker's default filter refuses, and a job container starts before checkout, so
+it cannot load `.devcontainer/seccomp.json`. CI therefore does not test that
+filter (AR-9).
 
 **AR-3** — The freshness gate compares the infra pin with the highest `vX.Y.Z`
 release tag, comparing the numbers of the version and not their text. A release
@@ -316,6 +320,10 @@ allowed or matched by a load.
 - `test_family.py`:
   `test_family_container_user_survives_repository_job_overrides`;
   the root job user survives repository require rows and follows their options.
+- `test_family.py`:
+  `test_family_sanitizer_jobs_run_without_a_seccomp_filter`;
+  inherited build and lint jobs run unconfined and other jobs keep the default
+  filter.
 
 ### AR-3 verification
 

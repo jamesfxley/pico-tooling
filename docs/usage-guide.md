@@ -50,7 +50,9 @@ passes none.
 
 House owns `sanitize`: declare `house_cxx_enable_sanitizers(PREFIX)` and set
 `HOUSE_MATRIX_SANITIZE=address` or `thread`. The family's build and lint rows
-run both; a library's own row for a group replaces the family's.
+run both without a seccomp filter (AR-2). A library's own row for a group
+replaces the family's, so a row that runs `thread` also sets
+`container_options = "--security-opt seccomp=unconfined"`.
 
 House renders `.devcontainer/devcontainer.json` from its editor base plus the
 family's build and seccomp overlay. `tests/.clang-tidy` is library-owned;

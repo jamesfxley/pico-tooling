@@ -37,13 +37,16 @@ skip = { footprint = "no [[footprint]] table", symbols = "no [[symbols]] table" 
 group = "online"
 schedule = "weekly"
 
+# ThreadSanitizer cannot run under Docker's default seccomp filter (AR-2).
 [[ci.require]]
 group = "build"
 matrix = { build_type = ["Debug", "Release"], sanitize = ["address", "thread"] }
+container_options = "--security-opt seccomp=unconfined"
 
 [[ci.require]]
 group = "lint"
 matrix = { sanitize = ["address", "thread"] }
+container_options = "--security-opt seccomp=unconfined"
 prepare = ["python3 dev.py build"]
 
 [[ci.require]]
