@@ -49,8 +49,8 @@ include directories for its platform. For any other board the firmware tree
 passes none.
 
 House owns `sanitize`: declare `house_cxx_enable_sanitizers(PREFIX)` and set
-`HOUSE_MATRIX_SANITIZE=address` or `thread`. The family's build and lint
-groups run both.
+`HOUSE_MATRIX_SANITIZE=address` or `thread`. The family's build and lint rows
+run both; a library's own row for a group replaces the family's.
 
 House renders `.devcontainer/devcontainer.json` from its editor base plus the
 family's build and seccomp overlay. `tests/.clang-tidy` is library-owned;
