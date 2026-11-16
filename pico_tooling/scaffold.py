@@ -13,6 +13,13 @@ from pathlib import Path
 from .metadata import NAME, InputError
 from .sync import sync
 
+# House's family template states the role of a family repository; a library
+# replaces it. The template's wrapping and spelling are House's to change.
+ROLE = re.compile(
+    r"This\s+repository\s+owns\s+a\s+product\s+family's\s+packages,\s+"
+    r"dependency\s+graph,\s+profiles\s+and\s+target-specific\s+behaviou?r\.",
+)
+
 # The scaffold commit covers the repository's sources, docs and configuration.
 SUBJECT = "tooling: scaffold the library from the pico family template"
 
@@ -84,13 +91,15 @@ def scaffold(destination, name, infra_repository, languages):
         f"# {name}\n" + text.split("\n", 1)[1], encoding="utf-8", newline="\n",
     )
     agents = destination / "AGENTS.md"
-    text = agents.read_text(encoding="utf-8").replace(
-        "# Product family", f"# {name}",
-    ).replace(
-        "This repository owns a product family's packages, dependency graph, profiles\n"
-        "and target-specific behavior.",
+    text, count = ROLE.subn(
         "This repository is a library in a product family.",
+        agents.read_text(encoding="utf-8").replace("# Product family", f"# {name}"),
     )
+    if count != 1:
+        raise InputError(
+            "the platform's family AGENTS.md no longer states the family role; "
+            "update the scaffold's role sentence",
+        )
     agents.write_text(text, encoding="utf-8", newline="\n")
     sync(destination)
     run("git", "add", "--all", cwd=destination)
