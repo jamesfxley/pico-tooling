@@ -54,7 +54,16 @@ def test_real_family_layers_work_without_adapters(tmp_path, infra_source):
     assert vscode["settings"]["editor.formatOnSave"] is True
     assert "llvm-vs-code-extensions.vscode-clangd" in vscode["extensions"]
     workflow = (root / ".github/workflows/ci.yml").read_text()
-    assert "Prepare lint input 1" in workflow
+    lint = workflow_model(root)["jobs"]["check_lint"]
+    # The scaffold has no fuzz tree, so House leaves out the fuzz cell.
+    assert lint["strategy"]["matrix"] == {"include": [
+        {"lint_tree": "all", "sanitize": "address"},
+        {"lint_tree": "firmware"},
+        {"lint_tree": "sanitize", "sanitize": "address"},
+        {"lint_tree": "sanitize", "sanitize": "thread"},
+    ]}
+    assert {"name": "Prepare lint input 1",
+            "run": "python3 dev.py build --configure-only"} in lint["steps"]
     assert "Prepare firmware input 2" in workflow
     assert "python3 dev.py gate build-warnings" in workflow
     with (root / "house.toml").open("a") as stream:

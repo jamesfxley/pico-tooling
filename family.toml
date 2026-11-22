@@ -43,11 +43,18 @@ group = "build"
 matrix = { build_type = ["Debug", "Release"], sanitize = ["address", "thread"] }
 container_options = "--security-opt seccomp=unconfined"
 
+# One lint job per tree; House leaves out cells for trees a library lacks.
 [[ci.require]]
 group = "lint"
-matrix = { sanitize = ["address", "thread"] }
+matrix = { include = [
+  { lint_tree = "all", sanitize = "address" },
+  { lint_tree = "firmware" },
+  { lint_tree = "fuzz" },
+  { lint_tree = "sanitize", sanitize = "address" },
+  { lint_tree = "sanitize", sanitize = "thread" },
+] }
 container_options = "--security-opt seccomp=unconfined"
-prepare = ["python3 dev.py build"]
+prepare = ["python3 dev.py build --configure-only"]
 
 [[ci.require]]
 group = "firmware"
