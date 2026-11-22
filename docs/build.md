@@ -12,9 +12,11 @@ Run `python3 dev.py build` to configure, clean-build and test enabled trees.
 Firmware uses `PICO_SDK_PATH` and the `board` matrix axis. House's built-in
 `sanitize` tree uses `house_cxx_enable_sanitizers` and
 `HOUSE_MATRIX_SANITIZE=address` or `thread`. Per-tree gate names include `build:firmware` and
-`lint:sanitize`. Each CI group runs independently. The `lint` group prepares
-with `dev.py build`; `firmware` prepares with `dev.py build` and `dev.py gate
-build-warnings`.
+`lint:sanitize`. Each CI group runs independently. The `lint` group runs one
+job per lint instance, leaving out trees the library lacks: `all` and
+`sanitize` under AddressSanitizer, `sanitize` again under ThreadSanitizer,
+`firmware` and `fuzz`. It prepares with `dev.py build --configure-only`;
+`firmware` prepares with `dev.py build` and `dev.py gate build-warnings`.
 
 `python3 dev.py sync` renders House's fixed-path copies, devcontainer and
 workflow. `python3 -m infra.pico_tooling sync` writes only the generated CMake

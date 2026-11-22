@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: MIT
-"""Scaffold a library: House init at the nested pin, then family sync (AR-7).
+"""Scaffold a library: House init, then family and House sync (AR-7).
 
 House renders templates through its public init command with the pin and
 platform path options. The family adds its input, CMake calls and bootstrap.
@@ -102,6 +102,8 @@ def scaffold(destination, name, infra_repository, languages):
         )
     agents.write_text(text, encoding="utf-8", newline="\n")
     sync(destination)
+    # Init rendered the workflow before the CMake edits added the sanitizer call.
+    run(sys.executable, "dev.py", "sync", cwd=destination)
     run("git", "add", "--all", cwd=destination)
     run(
         "git", "commit", "--amend", "--quiet", "-m", SUBJECT,
