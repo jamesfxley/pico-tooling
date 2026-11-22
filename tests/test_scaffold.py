@@ -21,6 +21,7 @@ ROUTE = ROWS[0]
 
 
 def test_scaffold_passes_ci_with_the_family_route(library, infra_source):
+    # synced-files fails here if the workflow predates the sanitizer call.
     checked = dev(library, "check", "--ci")
     assert checked.returncode == 0, checked.stdout + checked.stderr
     assert "family-files [standards/repository/default]: PASS" in checked.stdout
