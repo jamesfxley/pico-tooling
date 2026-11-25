@@ -270,6 +270,12 @@ stopping at the first identifier accepted by Get-UsbSerial. No disk-instance
 suffix is parsed. An unresolved drive has an empty serial and is never listed as
 allowed or matched by a load.
 
+**AR-18** — The repository's wheel contains only the `pico_tooling` package. In
+an environment with only the standard library and that wheel installed,
+`pico_tooling.device_proxy` and `pico_tooling.device_errors` import; a
+function-level import inside them is not covered. Other
+modules, including the gates, may import House and are not covered.
+
 ## Traceability matrix
 
 | Requirement | Verification |
@@ -289,6 +295,7 @@ allowed or matched by a load.
 | AR-15 | [Tests and criteria](#ar-15-verification) |
 | AR-16 | [Tests and criteria](#ar-16-verification) |
 | AR-17 | [Tests and criteria](#ar-17-verification) |
+| AR-18 | [Tests and criteria](#ar-18-verification) |
 
 ### AR-1 verification
 
@@ -547,6 +554,26 @@ not run.
   with a real SDK (`PICO_FAMILY_TEST_SDK`) an image using the header builds with
   no warning and carries the name, version, board, commit and dirty flag; these
   skip without the SDK.
+
+### AR-18 verification
+
+- `test_packaging.py`:
+  `test_the_build_settings_name_one_module_and_no_other`;
+  the build settings name `uv_build` as the backend and `pico_tooling` as the
+  only module.
+- `test_packaging.py`:
+  `test_the_proxy_and_errors_import_with_the_standard_library_alone`;
+  a copy of the package with no site packages imports both modules; only
+  imports made at module load are exercised.
+- `test_packaging.py`:
+  `test_the_import_fails_when_a_module_needs_house`;
+  the same run fails with `ModuleNotFoundError` naming `house`, so the import
+  test can fail.
+- Before each release, build the wheel with `uv build --wheel` and install it
+  alone in a fresh virtual environment, not an editable install. The release
+  pull request records the wheel's file list and the output of importing
+  `pico_tooling.device_proxy` and `pico_tooling.device_errors` in that
+  environment.
 
 AR-7 scaffold controls: `test_scaffold_history_records_only_the_distribution_url`
 checks every committed .gitmodules using a distinct non-local URL;

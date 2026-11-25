@@ -71,6 +71,24 @@ S --log FILE`, the blank-board BOOTSEL requirement, protocol and exit
 statuses. Every real board action needs explicit user authorization naming the
 serial and intended image.
 
+## Using the package as a dependency
+
+A Python project may depend on pico-tooling at a release tag and then import
+`pico_tooling.device_proxy` and `pico_tooling.device_errors` (AR-18). Declare
+the dependency in `pyproject.toml`:
+
+```toml
+[project]
+dependencies = [
+    "pico-tooling @ git+https://github.com/jamesfxley/pico-tooling@v<version>",
+]
+```
+
+Replace `v<version>` with the release tag to use. Only
+`pico_tooling.device_proxy` and `pico_tooling.device_errors` are supported from
+the installed package. The CLI is not supported from the installed
+package, and the gates and the CMake entry points need the repository checkout.
+
 ## Embedded gates
 
 A library with a firmware image declares it in `pico.toml` (AR-11):
